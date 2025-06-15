@@ -23,7 +23,7 @@ function App() {
   useEffect(() => {
     const fetchGoogleSheetData = async () => {
       try {
-        const response = await fetch('https://script.google.com/macros/s/AKfycbyPDJRGyVH0H9LCRBS4uMowMPE59KphrQf7g16RpbkrztR36OKGmSKMCpdA8uTAD62C/exec');
+        const response = await fetch(process.env.REACT_APP_API_URL);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
