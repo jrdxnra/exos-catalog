@@ -4,6 +4,7 @@ import LoadingState from './components/LoadingState';
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
 import GymSelector from './components/GymSelector';
+import RequestedItemsModal from './components/RequestedItemsModal';
 
 // Lazy load the ProductCard component
 const ProductCard = lazy(() => import('./components/ProductCard'));
@@ -21,10 +22,11 @@ function App() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [showAllItems, setShowAllItems] = useState(false);
 
-  // Shopping list states
+  // Request items states
   const [selectedGym, setSelectedGym] = useState('');
   const [selectedItems, setSelectedItems] = useState({});
   const [itemStatuses, setItemStatuses] = useState({});
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchGoogleSheetData = async () => {
@@ -123,6 +125,11 @@ function App() {
 
   const handleGymChange = (gym) => {
     setSelectedGym(gym);
+    setIsModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
   };
 
   const handleItemSelect = (itemName, isSelected) => {
@@ -139,7 +146,7 @@ function App() {
     }));
   };
 
-  const copyShoppingList = () => {
+  const copyRequestedItems = () => {
     const selectedProducts = filteredProducts.filter(product => selectedItems[product["item name"]]);
     const listItems = selectedProducts.map(product => {
       const status = itemStatuses[product["item name"]] || '';
@@ -153,12 +160,12 @@ function App() {
       ].join('\t');
     });
 
-    const header = `Shopping List for ${selectedGym}\n\n`;
+    const header = `Requested Items for ${selectedGym}\n\n`;
     const list = listItems.join('\n');
     const fullList = header + list;
 
     navigator.clipboard.writeText(fullList).then(() => {
-      setCopySuccess('shopping-list');
+      setCopySuccess('requested-items');
       setTimeout(() => setCopySuccess(null), 2000);
     });
   };
@@ -194,18 +201,6 @@ function App() {
             onGymChange={handleGymChange}
           />
 
-          {selectedGym && (
-            <div className="shopping-list-actions">
-              <button
-                className={`copy-list-button ${copySuccess === 'shopping-list' ? 'success' : ''}`}
-                onClick={copyShoppingList}
-                disabled={!Object.values(selectedItems).some(Boolean)}
-              >
-                {copySuccess === 'shopping-list' ? 'List Copied!' : 'Copy Shopping List'}
-              </button>
-            </div>
-          )}
-
           {!showAllItems ? (
             <div className="preferred-section">
               <div className="preferred-header">
@@ -220,10 +215,8 @@ function App() {
                       product={product}
                       onCopyInfo={copyProductInfo}
                       copySuccess={copySuccess}
-                      onStatusChange={handleStatusChange}
                       onSelect={handleItemSelect}
                       isSelected={selectedItems[product["item name"]] || false}
-                      status={itemStatuses[product["item name"]] || ''}
                     />
                   ))}
                 </Suspense>
@@ -244,10 +237,8 @@ function App() {
                       product={product}
                       onCopyInfo={copyProductInfo}
                       copySuccess={copySuccess}
-                      onStatusChange={handleStatusChange}
                       onSelect={handleItemSelect}
                       isSelected={selectedItems[product["item name"]] || false}
-                      status={itemStatuses[product["item name"]] || ''}
                     />
                   ))}
                 </Suspense>
@@ -262,6 +253,17 @@ function App() {
           )}
         </div>
       </div>
+
+      <RequestedItemsModal
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+        selectedGym={selectedGym}
+        products={products}
+        selectedItems={selectedItems}
+        itemStatuses={itemStatuses}
+        onStatusChange={handleStatusChange}
+        onSelect={handleItemSelect}
+      />
     </div>
   );
 }
