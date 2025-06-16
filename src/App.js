@@ -3,6 +3,7 @@ import './App.css';
 import LoadingState from './components/LoadingState';
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
+import GymSelector from './components/GymSelector';
 
 // Lazy load the ProductCard component
 const ProductCard = lazy(() => import('./components/ProductCard'));
@@ -19,6 +20,11 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [showAllItems, setShowAllItems] = useState(false);
+
+  // Shopping list states
+  const [selectedGym, setSelectedGym] = useState('');
+  const [selectedItems, setSelectedItems] = useState({});
+  const [itemStatuses, setItemStatuses] = useState({});
 
   useEffect(() => {
     const fetchGoogleSheetData = async () => {
@@ -112,8 +118,49 @@ function App() {
     setSelectedCategory('');
     setSelectedBrand('');
     setShowAllItems(false);
-    // Reset the URL to the base path
     window.history.pushState({}, '', '/');
+  };
+
+  const handleGymChange = (gym) => {
+    setSelectedGym(gym);
+  };
+
+  const handleItemSelect = (itemName, isSelected) => {
+    setSelectedItems(prev => ({
+      ...prev,
+      [itemName]: isSelected
+    }));
+  };
+
+  const handleStatusChange = (itemName, status) => {
+    setItemStatuses(prev => ({
+      ...prev,
+      [itemName]: status
+    }));
+  };
+
+  const copyShoppingList = () => {
+    const selectedProducts = filteredProducts.filter(product => selectedItems[product["item name"]]);
+    const listItems = selectedProducts.map(product => {
+      const status = itemStatuses[product["item name"]] || '';
+      return [
+        product["item name"],
+        product.brand,
+        product.category,
+        product.cost ? `$${product.cost}` : '',
+        product["exos part number"],
+        status
+      ].join('\t');
+    });
+
+    const header = `Shopping List for ${selectedGym}\n\n`;
+    const list = listItems.join('\n');
+    const fullList = header + list;
+
+    navigator.clipboard.writeText(fullList).then(() => {
+      setCopySuccess('shopping-list');
+      setTimeout(() => setCopySuccess(null), 2000);
+    });
   };
 
   if (loading) return <LoadingState type="category" message="Loading products..." />;
@@ -142,25 +189,71 @@ function App() {
         />
 
         <div className={`content-area ${isSidebarExpanded ? 'sidebar-expanded' : ''}`}>
-          {!showAllItems && (
-            <div className="preferred-header">
-              <h2>Preferred Items</h2>
-              <p>Use the search or filters to view all items</p>
+          <GymSelector
+            selectedGym={selectedGym}
+            onGymChange={handleGymChange}
+          />
+
+          {selectedGym && (
+            <div className="shopping-list-actions">
+              <button
+                className={`copy-list-button ${copySuccess === 'shopping-list' ? 'success' : ''}`}
+                onClick={copyShoppingList}
+                disabled={!Object.values(selectedItems).some(Boolean)}
+              >
+                {copySuccess === 'shopping-list' ? 'List Copied!' : 'Copy Shopping List'}
+              </button>
             </div>
           )}
-          
-          <div className="products-container">
-            <Suspense fallback={<LoadingState type="products" />}>
-              {filteredProducts.map((product, index) => (
-                <ProductCard
-                  key={index}
-                  product={product}
-                  onCopyInfo={copyProductInfo}
-                  copySuccess={copySuccess}
-                />
-              ))}
-            </Suspense>
-          </div>
+
+          {!showAllItems ? (
+            <div className="preferred-section">
+              <div className="preferred-header">
+                <h2>Preferred Items</h2>
+                <p>These are the recommended products to choose from.</p>
+              </div>
+              <div className="products-container">
+                <Suspense fallback={<LoadingState type="products" />}>
+                  {filteredProducts.map((product, index) => (
+                    <ProductCard
+                      key={index}
+                      product={product}
+                      onCopyInfo={copyProductInfo}
+                      copySuccess={copySuccess}
+                      onStatusChange={handleStatusChange}
+                      onSelect={handleItemSelect}
+                      isSelected={selectedItems[product["item name"]] || false}
+                      status={itemStatuses[product["item name"]] || ''}
+                    />
+                  ))}
+                </Suspense>
+              </div>
+            </div>
+          ) : (
+            <div className="category-section">
+              <div className="category-info">
+                <h2>Browse Our Catalog</h2>
+                <p>Use the sidebar to filter products by category, brand, or search for specific items.</p>
+                <p>Each product card includes detailed information and direct purchase links.</p>
+              </div>
+              <div className="products-container">
+                <Suspense fallback={<LoadingState type="products" />}>
+                  {filteredProducts.map((product, index) => (
+                    <ProductCard
+                      key={index}
+                      product={product}
+                      onCopyInfo={copyProductInfo}
+                      copySuccess={copySuccess}
+                      onStatusChange={handleStatusChange}
+                      onSelect={handleItemSelect}
+                      isSelected={selectedItems[product["item name"]] || false}
+                      status={itemStatuses[product["item name"]] || ''}
+                    />
+                  ))}
+                </Suspense>
+              </div>
+            </div>
+          )}
           
           {filteredProducts.length === 0 && (
             <div className="no-results">
