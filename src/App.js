@@ -38,6 +38,7 @@ const mockData = [
 
 const GYM_ITEMS_API_URL = 'https://sheetdb.io/api/v1/uwc1t04gagpfq';
 const SHEETDB_TAB_NAME = 'Gym Items List';
+const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbyPDJRGyVH0H9LCRBS4uMowMPE59KphrQf7g16RpbkrztR36OKGmSKMCpdA8uTAD62C/exec';
 
 function App() {
   const [products, setProducts] = useState([]);
@@ -63,10 +64,21 @@ function App() {
 
   const [isGymPanelCollapsed, setIsGymPanelCollapsed] = useState(false);
 
-  // Fetch data from SheetDB
+  // Fetch product catalog from Apps Script endpoint
   useEffect(() => {
-    setProducts(mockData);
-    setLoading(false);
+    const fetchCatalog = async () => {
+      try {
+        const response = await fetch(CATALOG_API_URL);
+        if (!response.ok) throw new Error('Failed to fetch catalog');
+        const data = await response.json();
+        setProducts(data);
+      } catch (err) {
+        setProducts([]); // or fallback to mockData if you want
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCatalog();
   }, []);
 
   // Get unique categories and brands
@@ -237,35 +249,19 @@ function App() {
           onToggle={() => setIsSidebarExpanded(!isSidebarExpanded)}
         />
         <div className={`content-area ${isSidebarExpanded ? 'sidebar-expanded' : ''}`}>
-          {!showAllItems ? (
-            <div className="products-container">
-              <Suspense fallback={<LoadingState type="products" />}>
-                {filteredProducts.map((product, index) => (
-                  <ProductCard
-                    key={index}
-                    product={product}
-                    onCopyInfo={copyProductInfo}
-                    copySuccess={copySuccess}
-                    onAddToGym={handleAddToGym}
-                  />
-                ))}
-              </Suspense>
-            </div>
-          ) : (
-            <div className="products-container">
-              <Suspense fallback={<LoadingState type="products" />}>
-                {filteredProducts.map((product, index) => (
-                  <ProductCard
-                    key={index}
-                    product={product}
-                    onCopyInfo={copyProductInfo}
-                    copySuccess={copySuccess}
-                    onAddToGym={handleAddToGym}
-                  />
-                ))}
-              </Suspense>
-            </div>
-          )}
+          <div className="products-container">
+            <Suspense fallback={<LoadingState type="products" />}>
+              {filteredProducts.map((product, index) => (
+                <ProductCard
+                  key={index}
+                  product={product}
+                  onCopyInfo={copyProductInfo}
+                  copySuccess={copySuccess}
+                  onAddToGym={handleAddToGym}
+                />
+              ))}
+            </Suspense>
+          </div>
           {!isGymPanelCollapsed && (
             <GymPanel
               activeGym={activeGym}
