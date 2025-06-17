@@ -114,12 +114,14 @@ function App() {
         product.Category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product["Exos Part Number"]?.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesCategory = selectedCategory === '' || product.Category === selectedCategory;
       const matchesBrand = selectedBrand === '' || product.Brand === selectedBrand;
       const isPreferred = product.Preferred?.toLowerCase() === 'yes';
 
+      if (selectedCategory === 'preferred') {
+        return matchesSearch && matchesBrand && isPreferred;
+      }
+      const matchesCategory = selectedCategory === '' || product.Category === selectedCategory;
       const shouldShow = showAllItems || searchTerm !== '' || selectedCategory !== '' || selectedBrand !== '';
-
       return matchesSearch && matchesCategory && matchesBrand && (shouldShow || isPreferred);
     });
   }, [products, searchTerm, selectedCategory, selectedBrand, showAllItems]);
@@ -233,7 +235,12 @@ function App() {
 
   const handleCategorySelect = (category) => {
     setSelectedCategory(category);
-    setShowAllItems(true);
+    // Only set showAllItems to true if not selecting 'preferred'
+    if (category !== 'preferred') {
+      setShowAllItems(true);
+    } else {
+      setShowAllItems(false);
+    }
   };
 
   const handleBrandSelect = (brand) => {
@@ -255,6 +262,29 @@ function App() {
 
   const handleGymClick = (gym) => {
     setActiveGym(gym);
+  };
+
+  // Modern condensed pagination logic
+  const getPagination = () => {
+    const pages = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      const left = Math.max(1, currentPage - 2);
+      const right = Math.min(totalPages, currentPage + 2);
+      if (left > 2) {
+        pages.push(1, '...');
+      } else {
+        for (let i = 1; i < left; i++) pages.push(i);
+      }
+      for (let i = left; i <= right; i++) pages.push(i);
+      if (right < totalPages - 1) {
+        pages.push('...', totalPages);
+      } else {
+        for (let i = right + 1; i <= totalPages; i++) pages.push(i);
+      }
+    }
+    return pages;
   };
 
   if (loading) return <LoadingState type="category" message="Loading products..." />;
@@ -299,15 +329,17 @@ function App() {
           {totalPages > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', margin: '2rem 0' }}>
               <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1}>&laquo; Prev</button>
-              {Array.from({ length: totalPages }, (_, i) => (
-                <button
-                  key={i + 1}
-                  onClick={() => handlePageChange(i + 1)}
-                  style={{ fontWeight: currentPage === i + 1 ? 'bold' : 'normal', minWidth: 32 }}
-                >
-                  {i + 1}
-                </button>
-              ))}
+              {getPagination().map((page, idx) =>
+                page === '...'
+                  ? <span key={"ellipsis-" + idx} style={{ minWidth: 32, textAlign: 'center' }}>...</span>
+                  : <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      style={{ fontWeight: currentPage === page ? 'bold' : 'normal', minWidth: 32, background: currentPage === page ? '#0046be' : undefined, color: currentPage === page ? 'white' : undefined, borderRadius: 4 }}
+                    >
+                      {page}
+                    </button>
+              )}
               <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages}>Next &raquo;</button>
             </div>
           )}
