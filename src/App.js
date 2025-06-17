@@ -8,6 +8,34 @@ import GymTabs from './components/GymTabs';
 // Lazy load the ProductCard component
 const ProductCard = lazy(() => import('./components/ProductCard'));
 
+// Mock data for development
+const mockData = [
+  {
+    "item name": "Dumbbell Set",
+    "brand": "PowerBlock",
+    "category": "Strength",
+    "cost": "299.99",
+    "exos part number": "DB-001",
+    "preferred": "yes"
+  },
+  {
+    "item name": "Resistance Bands",
+    "brand": "TheraBand",
+    "category": "Mobility",
+    "cost": "49.99",
+    "exos part number": "RB-002",
+    "preferred": "yes"
+  },
+  {
+    "item name": "Foam Roller",
+    "brand": "TriggerPoint",
+    "category": "Recovery",
+    "cost": "34.99",
+    "exos part number": "FR-003",
+    "preferred": "no"
+  }
+];
+
 function App() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,14 +62,21 @@ function App() {
   useEffect(() => {
     const fetchGoogleSheetData = async () => {
       try {
-        const response = await fetch(process.env.REACT_APP_API_URL);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        if (process.env.REACT_APP_API_URL) {
+          const response = await fetch(process.env.REACT_APP_API_URL);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const data = await response.json();
+          setProducts(data);
+        } else {
+          // Use mock data if API URL is not set
+          setProducts(mockData);
         }
-        const data = await response.json();
-        setProducts(data);
       } catch (err) {
-        setError(err.message || 'Failed to fetch products');
+        console.error('Error fetching data:', err);
+        // Use mock data if there's an error
+        setProducts(mockData);
       } finally {
         setLoading(false);
       }
