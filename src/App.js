@@ -62,18 +62,32 @@ function App() {
 
   const gyms = ['MP2', 'MAT3', 'MP5'];
 
-  const [isGymPanelCollapsed, setIsGymPanelCollapsed] = useState(false);
+  const [isGymPanelCollapsed, setIsGymPanelCollapsed] = useState(true);
 
-  // Fetch product catalog from Apps Script endpoint
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const PRODUCTS_PER_PAGE = 12;
+
+  // Fetch equipment list from Apps Script endpoint
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
         const response = await fetch(CATALOG_API_URL);
         if (!response.ok) throw new Error('Failed to fetch catalog');
         const data = await response.json();
-        setProducts(data);
+        // Normalize keys to match what the app expects
+        const normalized = data.map(item => ({
+          "Item Name": item["item name"] || "",
+          "Brand": item["brand"] || "",
+          "Category": item["category"] || "",
+          "Cost": item["cost"] !== undefined ? String(item["cost"]) : "",
+          "Exos Part Number": item["exos part number"] || "",
+          "Preferred": item["preferred"] || "",
+          "URL": item["url"] || ""
+        }));
+        setProducts(normalized);
       } catch (err) {
-        setProducts([]); // or fallback to mockData if you want
+        setProducts([]);
       } finally {
         setLoading(false);
       }
@@ -109,6 +123,25 @@ function App() {
       return matchesSearch && matchesCategory && matchesBrand && (shouldShow || isPreferred);
     });
   }, [products, searchTerm, selectedCategory, selectedBrand, showAllItems]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * PRODUCTS_PER_PAGE,
+    currentPage * PRODUCTS_PER_PAGE
+  );
+
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Reset to page 1 when filters/search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, selectedBrand, showAllItems]);
 
   const copyProductInfo = (product) => {
     const productInfo = [
@@ -216,8 +249,8 @@ function App() {
     setSelectedCategory('');
     setSelectedBrand('');
     setShowAllItems(false);
-    // Reset the URL to the base path
-    window.history.pushState({}, '', '/');
+    // Reset the URL to the base path for GitHub Pages subdirectory
+    window.location.pathname = '/my-react-app/';
   };
 
   const handleGymClick = (gym) => {
@@ -251,7 +284,7 @@ function App() {
         <div className={`content-area ${isSidebarExpanded ? 'sidebar-expanded' : ''}`}>
           <div className="products-container">
             <Suspense fallback={<LoadingState type="products" />}>
-              {filteredProducts.map((product, index) => (
+              {paginatedProducts.map((product, index) => (
                 <ProductCard
                   key={index}
                   product={product}
@@ -262,6 +295,22 @@ function App() {
               ))}
             </Suspense>
           </div>
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', margin: '2rem 0' }}>
+              <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1}>&laquo; Prev</button>
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i + 1}
+                  onClick={() => handlePageChange(i + 1)}
+                  style={{ fontWeight: currentPage === i + 1 ? 'bold' : 'normal', minWidth: 32 }}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages}>Next &raquo;</button>
+            </div>
+          )}
           {!isGymPanelCollapsed && (
             <GymPanel
               activeGym={activeGym}

@@ -39,6 +39,20 @@ const Sidebar = ({
         <div className="categories-section">
           <h3>Categories</h3>
           <div className="category-list">
+            <button
+              key="preferred-items"
+              className={`category-item ${selectedCategory === 'preferred' ? 'active' : ''}`}
+              onClick={(e) => handleCategoryClick(e, 'preferred')}
+            >
+              <span role="img" aria-label="star">⭐</span> Preferred Items
+            </button>
+            <button
+              key="all-categories"
+              className={`category-item ${!selectedCategory ? 'active' : ''}`}
+              onClick={(e) => handleCategoryClick(e, '')}
+            >
+              All Categories
+            </button>
             {categories.map((category) => (
               <button
                 key={category}

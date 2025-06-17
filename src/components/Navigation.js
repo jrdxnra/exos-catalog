@@ -8,31 +8,29 @@ const Navigation = ({ onSidebarToggle, onReset, isGymPanelCollapsed, onToggleGym
   };
 
   return (
-    <nav className="main-nav">
-      <div className="nav-container">
-        <div className="nav-left">
-          <button 
-            className="menu-button"
-            onClick={onSidebarToggle}
-          >
-            <span className="menu-icon">☰</span>
-          </button>
-        </div>
+    <nav className="main-nav" style={{ position: 'relative' }}>
+      <button 
+        className="menu-button nav-chevron-left"
+        onClick={onSidebarToggle}
+        style={{ marginLeft: 0, paddingLeft: 8 }}
+      >
+        <span className="menu-icon">☰</span>
+      </button>
+      <div className="nav-container" style={{ padding: 0 }}>
         <div className="nav-center">
           <button className="nav-title" onClick={handleReset}>
-            <h1>Product Catalog</h1>
-          </button>
-        </div>
-        <div className="nav-right">
-          <button
-            className="gym-panel-chevron"
-            onClick={onToggleGymPanel}
-            aria-label={isGymPanelCollapsed ? 'Expand equipment panel' : 'Collapse equipment panel'}
-          >
-            <span style={{fontSize: '2rem', lineHeight: 1}}>⋮</span>
+            <h1>Equipment List</h1>
           </button>
         </div>
       </div>
+      <button
+        className="gym-panel-chevron nav-chevron-right"
+        onClick={onToggleGymPanel}
+        aria-label={isGymPanelCollapsed ? 'Expand equipment panel' : 'Collapse equipment panel'}
+        style={{ marginRight: 0, paddingRight: 8 }}
+      >
+        <span style={{fontSize: '2rem', lineHeight: 1}}>⋮</span>
+      </button>
     </nav>
   );
 };
