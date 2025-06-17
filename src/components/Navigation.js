@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-const Navigation = ({ onSidebarToggle, onReset }) => {
+const Navigation = ({ onSidebarToggle, onReset, isGymPanelCollapsed, onToggleGymPanel }) => {
   const handleReset = (e) => {
     e.preventDefault();
     onReset(e);
@@ -23,6 +23,15 @@ const Navigation = ({ onSidebarToggle, onReset }) => {
             <h1>Product Catalog</h1>
           </button>
         </div>
+        <div className="nav-right">
+          <button
+            className="gym-panel-chevron"
+            onClick={onToggleGymPanel}
+            aria-label={isGymPanelCollapsed ? 'Expand equipment panel' : 'Collapse equipment panel'}
+          >
+            <span style={{fontSize: '2rem', lineHeight: 1}}>⋮</span>
+          </button>
+        </div>
       </div>
     </nav>
   );
@@ -30,7 +39,9 @@ const Navigation = ({ onSidebarToggle, onReset }) => {
 
 Navigation.propTypes = {
   onSidebarToggle: PropTypes.func.isRequired,
-  onReset: PropTypes.func.isRequired
+  onReset: PropTypes.func.isRequired,
+  isGymPanelCollapsed: PropTypes.bool.isRequired,
+  onToggleGymPanel: PropTypes.func.isRequired
 };
 
 export default Navigation; 

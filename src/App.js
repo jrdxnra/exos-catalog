@@ -3,7 +3,7 @@ import './App.css';
 import LoadingState from './components/LoadingState';
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
-import GymTabs from './components/GymTabs';
+import GymPanel from './components/GymPanel';
 
 // Lazy load the ProductCard component
 const ProductCard = lazy(() => import('./components/ProductCard'));
@@ -11,35 +11,37 @@ const ProductCard = lazy(() => import('./components/ProductCard'));
 // Mock data for development
 const mockData = [
   {
-    "item name": "Dumbbell Set",
-    "brand": "PowerBlock",
-    "category": "Strength",
-    "cost": "299.99",
-    "exos part number": "DB-001",
-    "preferred": "yes"
+    "Item Name": "Dumbbell Set",
+    "Brand": "PowerBlock",
+    "Category": "Strength",
+    "Cost": "299.99",
+    "Exos Part Number": "DB-001",
+    "Preferred": "Yes"
   },
   {
-    "item name": "Resistance Bands",
-    "brand": "TheraBand",
-    "category": "Mobility",
-    "cost": "49.99",
-    "exos part number": "RB-002",
-    "preferred": "yes"
+    "Item Name": "Resistance Bands",
+    "Brand": "TheraBand",
+    "Category": "Mobility",
+    "Cost": "49.99",
+    "Exos Part Number": "RB-002",
+    "Preferred": "Yes"
   },
   {
-    "item name": "Foam Roller",
-    "brand": "TriggerPoint",
-    "category": "Recovery",
-    "cost": "34.99",
-    "exos part number": "FR-003",
-    "preferred": "no"
+    "Item Name": "Foam Roller",
+    "Brand": "TriggerPoint",
+    "Category": "Recovery",
+    "Cost": "34.99",
+    "Exos Part Number": "FR-003",
+    "Preferred": "No"
   }
 ];
+
+const GYM_ITEMS_API_URL = 'https://sheetdb.io/api/v1/uwc1t04gagpfq';
+const SHEETDB_TAB_NAME = 'Gym Items List';
 
 function App() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [copySuccess, setCopySuccess] = useState(null);
   
   // Filter states
@@ -59,36 +61,18 @@ function App() {
 
   const gyms = ['MP2', 'MAT3', 'MP5'];
 
-  useEffect(() => {
-    const fetchGoogleSheetData = async () => {
-      try {
-        if (process.env.REACT_APP_API_URL) {
-          const response = await fetch(process.env.REACT_APP_API_URL);
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const data = await response.json();
-          setProducts(data);
-        } else {
-          // Use mock data if API URL is not set
-          setProducts(mockData);
-        }
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        // Use mock data if there's an error
-        setProducts(mockData);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const [isGymPanelCollapsed, setIsGymPanelCollapsed] = useState(false);
 
-    fetchGoogleSheetData();
+  // Fetch data from SheetDB
+  useEffect(() => {
+    setProducts(mockData);
+    setLoading(false);
   }, []);
 
   // Get unique categories and brands
   const { categories, brands } = useMemo(() => {
-    const uniqueCategories = [...new Set(products.map(product => product.category).filter(Boolean))];
-    const uniqueBrands = [...new Set(products.map(product => product.brand).filter(Boolean))];
+    const uniqueCategories = [...new Set(products.map(product => product.Category).filter(Boolean))];
+    const uniqueBrands = [...new Set(products.map(product => product.Brand).filter(Boolean))];
     return {
       categories: uniqueCategories.sort(),
       brands: uniqueBrands.sort()
@@ -99,14 +83,14 @@ function App() {
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
       const matchesSearch = searchTerm === '' || 
-        product["item name"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product["exos part number"]?.toLowerCase().includes(searchTerm.toLowerCase());
+        product["Item Name"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.Brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.Category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product["Exos Part Number"]?.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesCategory = selectedCategory === '' || product.category === selectedCategory;
-      const matchesBrand = selectedBrand === '' || product.brand === selectedBrand;
-      const isPreferred = product.preferred?.toLowerCase() === 'yes';
+      const matchesCategory = selectedCategory === '' || product.Category === selectedCategory;
+      const matchesBrand = selectedBrand === '' || product.Brand === selectedBrand;
+      const isPreferred = product.Preferred?.toLowerCase() === 'yes';
 
       const shouldShow = showAllItems || searchTerm !== '' || selectedCategory !== '' || selectedBrand !== '';
 
@@ -116,34 +100,83 @@ function App() {
 
   const copyProductInfo = (product) => {
     const productInfo = [
-      product["item name"] || '',
-      product.brand || '',
-      product.category || '',
-      product.cost ? `$${product.cost}` : '',
-      product["exos part number"] || '',
-      product.url || ''
+      product["Item Name"] || '',
+      product.Brand || '',
+      product.Category || '',
+      product.Cost ? `$${product.Cost}` : '',
+      product["Exos Part Number"] || '',
+      product.URL || ''
     ].join('\t');
 
     navigator.clipboard.writeText(productInfo).then(() => {
-      setCopySuccess(product["item name"]);
+      setCopySuccess(product["Item Name"]);
       setTimeout(() => setCopySuccess(null), 2000);
     }).catch(err => {
       console.error('Failed to copy text: ', err);
     });
   };
 
-  const handleAddToGym = (product, gym, quantity) => {
+  // Add to gym and POST to SheetDB
+  const handleAddToGym = async (product, gym, quantity) => {
+    const newItem = { ...product, quantity, status: 'Pending', Gym: gym };
     setGymItems(prev => ({
       ...prev,
-      [gym]: [...prev[gym], { ...product, quantity }]
+      [gym]: [...prev[gym], newItem]
     }));
+    // POST to SheetDB
+    try {
+      const response = await fetch(`${GYM_ITEMS_API_URL}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: [newItem] })
+      });
+      const result = await response.json();
+      console.log('SheetDB POST result:', result);
+    } catch (err) {
+      console.error('SheetDB POST error:', err);
+    }
   };
 
-  const handleRemoveFromGym = (gym, index) => {
-    setGymItems(prev => ({
-      ...prev,
-      [gym]: prev[gym].filter((_, i) => i !== index)
-    }));
+  // Remove from gym and DELETE from SheetDB
+  const handleRemoveFromGym = async (gym, index) => {
+    setGymItems(prev => {
+      const itemToRemove = prev[gym][index];
+      // DELETE from SheetDB by Exos Part Number (case-sensitive)
+      if (itemToRemove && itemToRemove["Exos Part Number"]) {
+        const deleteUrl = `${GYM_ITEMS_API_URL}/Exos%20Part%20Number/${encodeURIComponent(itemToRemove["Exos Part Number"])}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}`;
+        fetch(deleteUrl, { method: 'DELETE' })
+          .then(res => res.json())
+          .then(result => console.log('SheetDB DELETE result:', result))
+          .catch(err => console.error('SheetDB DELETE error:', err));
+      }
+      return {
+        ...prev,
+        [gym]: prev[gym].filter((_, i) => i !== index)
+      };
+    });
+  };
+
+  // Update status and PATCH to SheetDB
+  const handleStatusChange = async (gym, itemName, status) => {
+    setGymItems(prev => {
+      const updated = prev[gym].map(item =>
+        item["Item Name"] === itemName ? { ...item, status } : item
+      );
+      // PATCH to SheetDB for the updated item
+      const itemToUpdate = updated.find(item => item["Item Name"] === itemName);
+      if (itemToUpdate && itemToUpdate["Exos Part Number"]) {
+        const patchUrl = `${GYM_ITEMS_API_URL}/Exos%20Part%20Number/${encodeURIComponent(itemToUpdate["Exos Part Number"])}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}`;
+        fetch(patchUrl, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: { status } })
+        })
+          .then(res => res.json())
+          .then(result => console.log('SheetDB PATCH result:', result))
+          .catch(err => console.error('SheetDB PATCH error:', err));
+      }
+      return { ...prev, [gym]: updated };
+    });
   };
 
   const handleSearch = (term) => {
@@ -171,11 +204,15 @@ function App() {
     setSelectedCategory('');
     setSelectedBrand('');
     setShowAllItems(false);
+    // Reset the URL to the base path
     window.history.pushState({}, '', '/');
   };
 
+  const handleGymClick = (gym) => {
+    setActiveGym(gym);
+  };
+
   if (loading) return <LoadingState type="category" message="Loading products..." />;
-  if (error) return <div className="error">Error: {error}</div>;
   if (!products?.length && !loading) return <div className="no-products">No products found</div>;
 
   return (
@@ -183,8 +220,9 @@ function App() {
       <Navigation 
         onSidebarToggle={() => setIsSidebarExpanded(!isSidebarExpanded)}
         onReset={handleReset}
+        isGymPanelCollapsed={isGymPanelCollapsed}
+        onToggleGymPanel={() => setIsGymPanelCollapsed(!isGymPanelCollapsed)}
       />
-      
       <div className="main-content">
         <Sidebar
           categories={categories}
@@ -198,61 +236,44 @@ function App() {
           isExpanded={isSidebarExpanded}
           onToggle={() => setIsSidebarExpanded(!isSidebarExpanded)}
         />
-
         <div className={`content-area ${isSidebarExpanded ? 'sidebar-expanded' : ''}`}>
-          <GymTabs
-            activeGym={activeGym}
-            onGymChange={setActiveGym}
-            gyms={gyms}
-          />
-
-          <div className="gym-content">
-            <div className="gym-items">
-              <h2>{activeGym} Items</h2>
-              {gymItems[activeGym].length === 0 ? (
-                <p className="no-items-message">No items added to {activeGym} yet.</p>
-              ) : (
-                <div className="gym-items-list">
-                  {gymItems[activeGym].map((item, index) => (
-                    <div key={index} className="gym-item">
-                      <div className="item-info">
-                        <h3>{item["item name"]}</h3>
-                        <p className="item-brand">{item.brand}</p>
-                        <p className="item-quantity">Quantity: {item.quantity}</p>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveFromGym(activeGym, index)}
-                        className="remove-item-button"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+          {!showAllItems ? (
+            <div className="products-container">
+              <Suspense fallback={<LoadingState type="products" />}>
+                {filteredProducts.map((product, index) => (
+                  <ProductCard
+                    key={index}
+                    product={product}
+                    onCopyInfo={copyProductInfo}
+                    copySuccess={copySuccess}
+                    onAddToGym={handleAddToGym}
+                  />
+                ))}
+              </Suspense>
             </div>
-
-            <div className="products-section">
-              <div className="products-container">
-                <Suspense fallback={<LoadingState type="products" />}>
-                  {filteredProducts.map((product, index) => (
-                    <ProductCard
-                      key={index}
-                      product={product}
-                      onCopyInfo={copyProductInfo}
-                      copySuccess={copySuccess}
-                      onAddToGym={handleAddToGym}
-                    />
-                  ))}
-                </Suspense>
-              </div>
+          ) : (
+            <div className="products-container">
+              <Suspense fallback={<LoadingState type="products" />}>
+                {filteredProducts.map((product, index) => (
+                  <ProductCard
+                    key={index}
+                    product={product}
+                    onCopyInfo={copyProductInfo}
+                    copySuccess={copySuccess}
+                    onAddToGym={handleAddToGym}
+                  />
+                ))}
+              </Suspense>
             </div>
-          </div>
-          
-          {filteredProducts.length === 0 && (
-            <div className="no-results">
-              No products match your filters. Try adjusting your search criteria.
-            </div>
+          )}
+          {!isGymPanelCollapsed && (
+            <GymPanel
+              activeGym={activeGym}
+              gyms={gyms}
+              gymItems={gymItems}
+              handleGymClick={handleGymClick}
+              handleRemoveFromGym={handleRemoveFromGym}
+            />
           )}
         </div>
       </div>

@@ -403,7 +403,9 @@
 
 .nav-right {
   display: flex;
-  gap: 16px;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
 }
 
 .nav-button {
@@ -610,7 +612,7 @@
   transition: margin-left 0.3s ease;
   background: #f8f9fa;
   min-height: calc(100vh - 60px);
-  padding: 20px 0;
+  padding: 20px 20px 20px 0;
 }
 
 .content-area.sidebar-expanded {
@@ -818,7 +820,7 @@
   transition: margin-left 0.3s ease;
   background: #f8f9fa;
   min-height: calc(100vh - 60px);
-  padding: 20px 0;
+  padding: 20px 20px 20px 0;
 }
 
 .content-area.sidebar-expanded {
@@ -1153,11 +1155,15 @@
 .gym-tabs {
   display: flex;
   gap: 1rem;
-  margin-bottom: 2rem;
   padding: 1rem;
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  right: 20px;
+  top: 80px;
+  z-index: 10;
+  width: 350px;
 }
 
 .gym-tab {
@@ -1184,9 +1190,16 @@
 /* Gym Content Styles */
 .gym-content {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: minmax(300px, 1fr) 350px;
   gap: 2rem;
   padding: 1rem;
+  position: relative;
+}
+
+.gym-sidebar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .gym-items {
@@ -1195,6 +1208,10 @@
   padding: 1.5rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   height: fit-content;
+  transition: all 0.3s ease;
+  grid-column: 2;
+  position: static;
+  top: unset;
 }
 
 .gym-items h2 {
@@ -1203,10 +1220,26 @@
   font-size: 1.5rem;
 }
 
+.gym-items h2 .collapse-button {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem;
+  font-size: 1.2rem;
+  transition: color 0.2s;
+}
+
+.gym-items h2 .collapse-button:hover {
+  color: #0046be;
+}
+
 .gym-items-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
 }
 
 .gym-item {
@@ -1219,10 +1252,18 @@
   border: 1px solid #e0e0e0;
 }
 
+.item-info {
+  flex: 1;
+  min-width: 0;
+}
+
 .item-info h3 {
   margin: 0 0 0.5rem 0;
   color: #333;
   font-size: 1.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .item-brand {
@@ -1245,65 +1286,17 @@
   cursor: pointer;
   font-size: 0.9rem;
   transition: background-color 0.2s;
+  flex-shrink: 0;
+  margin-left: 1rem;
 }
 
 .remove-item-button:hover {
   background: #c82333;
 }
 
-/* Product Card Updates */
-.product-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.gym-select {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  background: white;
-  font-size: 0.9rem;
-  color: #495057;
-  cursor: pointer;
-}
-
-.quantity-selector {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.quantity-input {
-  width: 80px;
-  padding: 0.5rem;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  text-align: center;
-}
-
-.add-to-gym-button {
-  padding: 0.75rem;
-  background: #28a745;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: background-color 0.2s;
-}
-
-.add-to-gym-button:hover:not(:disabled) {
-  background: #218838;
-}
-
-.add-to-gym-button:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
-  opacity: 0.7;
+.products-section {
+  grid-column: 1;
+  padding-right: 20px;
 }
 
 .no-items-message {
@@ -1314,4 +1307,147 @@
   background: #f8f9fa;
   border-radius: 6px;
   border: 1px dashed #ced4da;
+}
+
+/* Update existing styles */
+.products-container {
+  margin: 0;
+  padding: 20px;
+}
+
+@media (max-width: 1000px) {
+  .gym-content {
+    grid-template-columns: 1fr;
+  }
+  .gym-sidebar-panel {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+}
+
+.gym-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: sticky;
+  top: 80px;
+  height: fit-content;
+}
+
+@media (max-width: 1200px) {
+  .gym-content {
+    grid-template-columns: 1fr;
+  }
+
+  .gym-sidebar {
+    position: fixed;
+    right: 20px;
+    top: 80px;
+    z-index: 100;
+    max-width: 300px;
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .gym-items.collapsed {
+    display: none;
+  }
+}
+
+.gym-panel-floating {
+  position: fixed;
+  top: 80px;
+  right: 32px;
+  z-index: 1200;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12), 0 1.5px 6px rgba(0,0,0,0.08);
+  padding: 0;
+  min-width: 340px;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (max-width: 600px) {
+  .gym-panel-floating {
+    right: 8px;
+    left: 8px;
+    min-width: unset;
+    max-width: unset;
+    padding: 1rem 0.5rem;
+  }
+}
+
+.gym-panel-inner {
+  padding: 1.5rem 1.25rem;
+}
+
+.gym-tabs,
+.gym-items {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gym-panel-chevron {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.7rem;
+  cursor: pointer;
+  padding: 0 16px;
+  transition: color 0.2s;
+  outline: none;
+}
+.gym-panel-chevron:hover {
+  color: #ffd700;
+}
+
+/* Restore original .product-actions layout */
+.product-actions {
+  display: flex;
+  flex-direction: column;
+  margin-top: 1rem;
+}
+
+.add-to-gym-button + .copy-button {
+  margin-top: 0.5rem;
+}
+
+@media (min-width: 600px) {
+  .product-actions {
+    flex-direction: column;
+  }
+  .add-to-gym-button + .copy-button {
+    margin-top: 0.5rem;
+  }
+}
+
+.quantity-input {
+  width: 60px;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1em;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.quantity-selector {
+  margin-bottom: 0.5rem;
+}
+
+.product-actions .quantity-selector {
+  margin-left: 1rem;
+  display: flex;
+  align-items: center;
+}
+
+.product-actions .quantity-input {
+  margin-top: 0;
+  margin-bottom: 0;
 }

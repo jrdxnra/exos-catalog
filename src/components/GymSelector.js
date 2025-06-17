@@ -1,5 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import './GymSelector.css';
 
 const GymSelector = ({ selectedGym, onGymChange }) => {
   const gyms = ['MP2', 'MAT3', 'MP5'];

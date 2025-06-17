@@ -1,0 +1,40 @@
+.gym-selector {
+  position: absolute;
+  right: 20px;
+  top: 20px;
+  background-color: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.gym-selector h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.gym-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gym-button {
+  padding: 8px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gym-button:hover {
+  background-color: #f0f0f0;
+}
+
+.gym-button.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #0056b3;
+} 

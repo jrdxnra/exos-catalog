@@ -2,22 +2,30 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 
 function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym }) {
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState('1');
   const [selectedGym, setSelectedGym] = useState('');
 
   const handleQuantityChange = (e) => {
-    const value = parseInt(e.target.value, 10);
-    if (value > 0) {
+    const value = e.target.value;
+    if (/^\d*$/.test(value)) {
       setQuantity(value);
     }
   };
 
   const handleAddToGym = () => {
-    if (selectedGym && quantity > 0) {
-      onAddToGym(product, selectedGym, quantity);
-      setQuantity(1);
+    const qty = parseInt(quantity, 10);
+    if (selectedGym && qty > 0) {
+      onAddToGym(product, selectedGym, qty);
+      setQuantity('1');
       setSelectedGym('');
     }
+  };
+
+  // Format cost to ensure single $ symbol
+  const formatCost = (cost) => {
+    if (!cost) return '';
+    // Remove any existing $ symbols and add a single one
+    return `$${cost.replace(/[$]/g, '')}`;
   };
 
   return (
@@ -25,24 +33,24 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym }) {
       <div className="product-card-content">
         <div className="product-card-header">
           <div className="title-container">
-            <h3>{product["item name"]}</h3>
-            {product.preferred?.toLowerCase() === 'yes' && (
+            <h3>{product["Item Name"]}</h3>
+            {product.Preferred?.toLowerCase() === 'yes' && (
               <span className="preferred-badge">Preferred Item</span>
             )}
           </div>
         </div>
 
         <div className="product-details">
-          <p className="product-brand">{product.brand}</p>
-          <p className="product-category">{product.category}</p>
-          {product.cost && <p className="product-cost">${product.cost}</p>}
-          {product["exos part number"] && (
-            <p className="product-part-number">{product["exos part number"]}</p>
+          <p className="product-brand">{product.Brand}</p>
+          <p className="product-category">{product.Category}</p>
+          {product.Cost && <p className="product-cost">{formatCost(product.Cost)}</p>}
+          {product["EXOS Part Number"] && (
+            <p className="product-part-number">{product["EXOS Part Number"]}</p>
           )}
         </div>
 
         <div className="product-actions">
-          <div className="gym-selector">
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '8rem', alignItems: 'center', marginBottom: '0.5rem' }}>
             <select
               value={selectedGym}
               onChange={(e) => setSelectedGym(e.target.value)}
@@ -53,18 +61,15 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym }) {
               <option value="MAT3">MAT3</option>
               <option value="MP5">MP5</option>
             </select>
-          </div>
-          
-          <div className="quantity-selector">
             <input
               type="number"
               min="1"
               value={quantity}
               onChange={handleQuantityChange}
               className="quantity-input"
+              style={{ height: '38px' }}
             />
           </div>
-
           <button
             onClick={handleAddToGym}
             disabled={!selectedGym}
@@ -72,12 +77,11 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym }) {
           >
             Add to Gym
           </button>
-
           <button
             onClick={() => onCopyInfo(product)}
-            className={`copy-button ${copySuccess === product["item name"] ? 'success' : ''}`}
+            className={`copy-button ${copySuccess === product["Item Name"] ? 'success' : ''}`}
           >
-            {copySuccess === product["item name"] ? 'Copied!' : 'Copy Info'}
+            {copySuccess === product["Item Name"] ? 'Copied!' : 'Copy Info'}
           </button>
         </div>
       </div>
@@ -87,12 +91,12 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym }) {
 
 ProductCard.propTypes = {
   product: PropTypes.shape({
-    "item name": PropTypes.string,
-    brand: PropTypes.string,
-    category: PropTypes.string,
-    cost: PropTypes.string,
-    "exos part number": PropTypes.string,
-    preferred: PropTypes.string,
+    "Item Name": PropTypes.string,
+    Brand: PropTypes.string,
+    Category: PropTypes.string,
+    Cost: PropTypes.string,
+    "EXOS Part Number": PropTypes.string,
+    Preferred: PropTypes.string,
   }).isRequired,
   onCopyInfo: PropTypes.func.isRequired,
   copySuccess: PropTypes.string,

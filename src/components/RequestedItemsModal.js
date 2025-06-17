@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 function RequestedItemsModal({ isOpen, onClose, selectedGym, products, selectedItems, itemStatuses, onStatusChange, onSelect }) {
   if (!isOpen) return null;
 
-  const selectedProducts = products.filter(product => selectedItems[product["item name"]]);
+  const selectedProducts = products.filter(product => selectedItems[product["Item Name"]]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -24,18 +24,18 @@ function RequestedItemsModal({ isOpen, onClose, selectedGym, products, selectedI
               {selectedProducts.map((product, index) => (
                 <div key={index} className="requested-item">
                   <div className="item-info">
-                    <h3>{product["item name"]}</h3>
-                    <p className="item-brand">{product.brand}</p>
-                    <p className="item-category">{product.category}</p>
-                    <p className="item-cost">{product.cost ? `$${product.cost}` : ''}</p>
-                    <p className="item-part-number">{product["exos part number"]}</p>
+                    <h3>{product["Item Name"]}</h3>
+                    <p className="item-brand">{product.Brand}</p>
+                    <p className="item-category">{product.Category}</p>
+                    <p className="item-cost">{product.Cost ? `$${product.Cost}` : ''}</p>
+                    <p className="item-part-number">{product["EXOS Part Number"]}</p>
                   </div>
                   
                   <div className="item-actions">
                     <select
                       className="status-select"
-                      value={itemStatuses[product["item name"]] || ''}
-                      onChange={(e) => onStatusChange(product["item name"], e.target.value)}
+                      value={itemStatuses[product["Item Name"]] || ''}
+                      onChange={(e) => onStatusChange(product["Item Name"], e.target.value)}
                     >
                       <option value="">Select Status</option>
                       <option value="Hold">Hold</option>
@@ -47,7 +47,7 @@ function RequestedItemsModal({ isOpen, onClose, selectedGym, products, selectedI
                     
                     <button
                       className="remove-item-button"
-                      onClick={() => onSelect(product["item name"], false)}
+                      onClick={() => onSelect(product["Item Name"], false)}
                     >
                       Remove
                     </button>
