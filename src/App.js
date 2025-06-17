@@ -3,8 +3,7 @@ import './App.css';
 import LoadingState from './components/LoadingState';
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
-import GymSelector from './components/GymSelector';
-import RequestedItemsModal from './components/RequestedItemsModal';
+import GymTabs from './components/GymTabs';
 
 // Lazy load the ProductCard component
 const ProductCard = lazy(() => import('./components/ProductCard'));
@@ -22,11 +21,15 @@ function App() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [showAllItems, setShowAllItems] = useState(false);
 
-  // Request items states
-  const [selectedGym, setSelectedGym] = useState('');
-  const [selectedItems, setSelectedItems] = useState({});
-  const [itemStatuses, setItemStatuses] = useState({});
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Gym states
+  const [activeGym, setActiveGym] = useState('MP2');
+  const [gymItems, setGymItems] = useState({
+    MP2: [],
+    MAT3: [],
+    MP5: []
+  });
+
+  const gyms = ['MP2', 'MAT3', 'MP5'];
 
   useEffect(() => {
     const fetchGoogleSheetData = async () => {
@@ -70,7 +73,6 @@ function App() {
       const matchesBrand = selectedBrand === '' || product.brand === selectedBrand;
       const isPreferred = product.preferred?.toLowerCase() === 'yes';
 
-      // Show all items if searching or if showAllItems is true
       const shouldShow = showAllItems || searchTerm !== '' || selectedCategory !== '' || selectedBrand !== '';
 
       return matchesSearch && matchesCategory && matchesBrand && (shouldShow || isPreferred);
@@ -93,6 +95,20 @@ function App() {
     }).catch(err => {
       console.error('Failed to copy text: ', err);
     });
+  };
+
+  const handleAddToGym = (product, gym, quantity) => {
+    setGymItems(prev => ({
+      ...prev,
+      [gym]: [...prev[gym], { ...product, quantity }]
+    }));
+  };
+
+  const handleRemoveFromGym = (gym, index) => {
+    setGymItems(prev => ({
+      ...prev,
+      [gym]: prev[gym].filter((_, i) => i !== index)
+    }));
   };
 
   const handleSearch = (term) => {
@@ -123,53 +139,6 @@ function App() {
     window.history.pushState({}, '', '/');
   };
 
-  const handleGymChange = (gym) => {
-    setSelectedGym(gym);
-    setIsModalOpen(true);
-  };
-
-  const handleModalClose = () => {
-    setIsModalOpen(false);
-  };
-
-  const handleItemSelect = (itemName, isSelected) => {
-    setSelectedItems(prev => ({
-      ...prev,
-      [itemName]: isSelected
-    }));
-  };
-
-  const handleStatusChange = (itemName, status) => {
-    setItemStatuses(prev => ({
-      ...prev,
-      [itemName]: status
-    }));
-  };
-
-  const copyRequestedItems = () => {
-    const selectedProducts = filteredProducts.filter(product => selectedItems[product["item name"]]);
-    const listItems = selectedProducts.map(product => {
-      const status = itemStatuses[product["item name"]] || '';
-      return [
-        product["item name"],
-        product.brand,
-        product.category,
-        product.cost ? `$${product.cost}` : '',
-        product["exos part number"],
-        status
-      ].join('\t');
-    });
-
-    const header = `Requested Items for ${selectedGym}\n\n`;
-    const list = listItems.join('\n');
-    const fullList = header + list;
-
-    navigator.clipboard.writeText(fullList).then(() => {
-      setCopySuccess('requested-items');
-      setTimeout(() => setCopySuccess(null), 2000);
-    });
-  };
-
   if (loading) return <LoadingState type="category" message="Loading products..." />;
   if (error) return <div className="error">Error: {error}</div>;
   if (!products?.length && !loading) return <div className="no-products">No products found</div>;
@@ -196,17 +165,39 @@ function App() {
         />
 
         <div className={`content-area ${isSidebarExpanded ? 'sidebar-expanded' : ''}`}>
-          <GymSelector
-            selectedGym={selectedGym}
-            onGymChange={handleGymChange}
+          <GymTabs
+            activeGym={activeGym}
+            onGymChange={setActiveGym}
+            gyms={gyms}
           />
 
-          {!showAllItems ? (
-            <div className="preferred-section">
-              <div className="preferred-header">
-                <h2>Preferred Items</h2>
-                <p>These are the recommended products to choose from.</p>
-              </div>
+          <div className="gym-content">
+            <div className="gym-items">
+              <h2>{activeGym} Items</h2>
+              {gymItems[activeGym].length === 0 ? (
+                <p className="no-items-message">No items added to {activeGym} yet.</p>
+              ) : (
+                <div className="gym-items-list">
+                  {gymItems[activeGym].map((item, index) => (
+                    <div key={index} className="gym-item">
+                      <div className="item-info">
+                        <h3>{item["item name"]}</h3>
+                        <p className="item-brand">{item.brand}</p>
+                        <p className="item-quantity">Quantity: {item.quantity}</p>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveFromGym(activeGym, index)}
+                        className="remove-item-button"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="products-section">
               <div className="products-container">
                 <Suspense fallback={<LoadingState type="products" />}>
                   {filteredProducts.map((product, index) => (
@@ -215,36 +206,13 @@ function App() {
                       product={product}
                       onCopyInfo={copyProductInfo}
                       copySuccess={copySuccess}
-                      onSelect={handleItemSelect}
-                      isSelected={selectedItems[product["item name"]] || false}
+                      onAddToGym={handleAddToGym}
                     />
                   ))}
                 </Suspense>
               </div>
             </div>
-          ) : (
-            <div className="category-section">
-              <div className="category-info">
-                <h2>Browse Our Catalog</h2>
-                <p>Use the sidebar to filter products by category, brand, or search for specific items.</p>
-                <p>Each product card includes detailed information and direct purchase links.</p>
-              </div>
-              <div className="products-container">
-                <Suspense fallback={<LoadingState type="products" />}>
-                  {filteredProducts.map((product, index) => (
-                    <ProductCard
-                      key={index}
-                      product={product}
-                      onCopyInfo={copyProductInfo}
-                      copySuccess={copySuccess}
-                      onSelect={handleItemSelect}
-                      isSelected={selectedItems[product["item name"]] || false}
-                    />
-                  ))}
-                </Suspense>
-              </div>
-            </div>
-          )}
+          </div>
           
           {filteredProducts.length === 0 && (
             <div className="no-results">
@@ -253,17 +221,6 @@ function App() {
           )}
         </div>
       </div>
-
-      <RequestedItemsModal
-        isOpen={isModalOpen}
-        onClose={handleModalClose}
-        selectedGym={selectedGym}
-        products={products}
-        selectedItems={selectedItems}
-        itemStatuses={itemStatuses}
-        onStatusChange={handleStatusChange}
-        onSelect={handleItemSelect}
-      />
     </div>
   );
 }
