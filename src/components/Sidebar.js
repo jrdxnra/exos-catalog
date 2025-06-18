@@ -97,4 +97,4 @@ Sidebar.propTypes = {
   onToggle: PropTypes.func.isRequired
 };
 
-export default Sidebar; 
+export default React.memo(Sidebar); 

@@ -139,4 +139,4 @@ const GymPanel = ({ activeGym, gyms, gymItems, isGymListCollapsed, handleGymClic
   );
 };
 
-export default GymPanel; 
+export default React.memo(GymPanel); 

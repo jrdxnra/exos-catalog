@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense, useCallback } from 'react';
 import './App.css';
 import LoadingState from './components/LoadingState';
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
-import GymPanel from './components/GymPanel';
-
-// Lazy load the ProductCard component
+// Lazy load GymPanel and ProductCard
+const GymPanel = lazy(() => import('./components/GymPanel'));
 const ProductCard = lazy(() => import('./components/ProductCard'));
 
 // Mock data for development
@@ -40,6 +39,8 @@ const GYM_ITEMS_API_URL = 'https://sheetdb.io/api/v1/uwc1t04gagpfq';
 const SHEETDB_TAB_NAME = 'Gym Items List';
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbyPDJRGyVH0H9LCRBS4uMowMPE59KphrQf7g16RpbkrztR36OKGmSKMCpdA8uTAD62C/exec';
 
+const LOCAL_STORAGE_KEY = 'cachedProducts';
+
 function App() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,14 +69,25 @@ function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const PRODUCTS_PER_PAGE = 12;
 
-  // Fetch equipment list from Apps Script endpoint
+  const [initialPreferredOnly, setInitialPreferredOnly] = useState(true);
+
+  // Fetch equipment list from Apps Script endpoint with LocalStorage caching
   useEffect(() => {
+    // Try to load from localStorage first
+    const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setProducts(parsed);
+        setLoading(false);
+      } catch {}
+    }
+    // Always fetch fresh data in the background
     const fetchCatalog = async () => {
       try {
         const response = await fetch(CATALOG_API_URL);
         if (!response.ok) throw new Error('Failed to fetch catalog');
         const data = await response.json();
-        // Normalize keys to match what the app expects
         const normalized = data.map(item => ({
           "Item Name": item["item name"] || "",
           "Brand": item["brand"] || "",
@@ -86,8 +98,9 @@ function App() {
           "URL": item["url"] || ""
         }));
         setProducts(normalized);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(normalized));
       } catch (err) {
-        setProducts([]);
+        // If fetch fails, keep whatever is in state
       } finally {
         setLoading(false);
       }
@@ -107,16 +120,19 @@ function App() {
 
   // Filter products
   const filteredProducts = useMemo(() => {
-    return products.filter(product => {
+    let base = products;
+    // On initial load, only show preferred products unless filters/search are used
+    if (initialPreferredOnly && !searchTerm && !selectedCategory && !selectedBrand && !showAllItems) {
+      base = products.filter(product => product.Preferred?.toLowerCase() === 'yes');
+    }
+    return base.filter(product => {
       const matchesSearch = searchTerm === '' || 
         product["Item Name"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.Brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.Category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product["Exos Part Number"]?.toLowerCase().includes(searchTerm.toLowerCase());
-
       const matchesBrand = selectedBrand === '' || product.Brand === selectedBrand;
       const isPreferred = product.Preferred?.toLowerCase() === 'yes';
-
       if (selectedCategory === 'preferred') {
         return matchesSearch && matchesBrand && isPreferred;
       }
@@ -124,7 +140,14 @@ function App() {
       const shouldShow = showAllItems || searchTerm !== '' || selectedCategory !== '' || selectedBrand !== '';
       return matchesSearch && matchesCategory && matchesBrand && (shouldShow || isPreferred);
     });
-  }, [products, searchTerm, selectedCategory, selectedBrand, showAllItems]);
+  }, [products, searchTerm, selectedCategory, selectedBrand, showAllItems, initialPreferredOnly]);
+
+  // When user interacts with filters/search, show all products
+  useEffect(() => {
+    if (searchTerm || selectedCategory || selectedBrand || showAllItems) {
+      setInitialPreferredOnly(false);
+    }
+  }, [searchTerm, selectedCategory, selectedBrand, showAllItems]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
@@ -133,19 +156,15 @@ function App() {
     currentPage * PRODUCTS_PER_PAGE
   );
 
-  const handlePageChange = (page) => {
+  // Handlers with useCallback
+  const handlePageChange = useCallback((page) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  };
+  }, [totalPages]);
 
-  // Reset to page 1 when filters/search change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, selectedCategory, selectedBrand, showAllItems]);
-
-  const copyProductInfo = (product) => {
+  const copyProductInfo = useCallback((product) => {
     const productInfo = [
       product["Item Name"] || '',
       product.Brand || '',
@@ -154,62 +173,46 @@ function App() {
       product["Exos Part Number"] || '',
       product.URL || ''
     ].join('\t');
-
     navigator.clipboard.writeText(productInfo).then(() => {
       setCopySuccess(product["Item Name"]);
       setTimeout(() => setCopySuccess(null), 2000);
-    }).catch(err => {
-      console.error('Failed to copy text: ', err);
-    });
-  };
+    }).catch(() => {});
+  }, []);
 
-  // Add to gym and POST to SheetDB
-  const handleAddToGym = async (product, gym, quantity) => {
+  const handleAddToGym = useCallback(async (product, gym, quantity) => {
     const newItem = { ...product, quantity, status: 'Pending', Gym: gym };
     setGymItems(prev => ({
       ...prev,
       [gym]: [...prev[gym], newItem]
     }));
-    // POST to SheetDB
     try {
-      const response = await fetch(`${GYM_ITEMS_API_URL}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}`, {
+      await fetch(`${GYM_ITEMS_API_URL}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: [newItem] })
       });
-      const result = await response.json();
-      console.log('SheetDB POST result:', result);
-    } catch (err) {
-      console.error('SheetDB POST error:', err);
-    }
-  };
+    } catch (err) {}
+  }, []);
 
-  // Remove from gym and DELETE from SheetDB
-  const handleRemoveFromGym = async (gym, index) => {
+  const handleRemoveFromGym = useCallback(async (gym, index) => {
     setGymItems(prev => {
       const itemToRemove = prev[gym][index];
-      // DELETE from SheetDB by Exos Part Number (case-sensitive)
       if (itemToRemove && itemToRemove["Exos Part Number"]) {
         const deleteUrl = `${GYM_ITEMS_API_URL}/Exos%20Part%20Number/${encodeURIComponent(itemToRemove["Exos Part Number"])}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}`;
-        fetch(deleteUrl, { method: 'DELETE' })
-          .then(res => res.json())
-          .then(result => console.log('SheetDB DELETE result:', result))
-          .catch(err => console.error('SheetDB DELETE error:', err));
+        fetch(deleteUrl, { method: 'DELETE' });
       }
       return {
         ...prev,
         [gym]: prev[gym].filter((_, i) => i !== index)
       };
     });
-  };
+  }, []);
 
-  // Update status and PATCH to SheetDB
-  const handleStatusChange = async (gym, itemName, status) => {
+  const handleStatusChange = useCallback(async (gym, itemName, status) => {
     setGymItems(prev => {
       const updated = prev[gym].map(item =>
         item["Item Name"] === itemName ? { ...item, status } : item
       );
-      // PATCH to SheetDB for the updated item
       const itemToUpdate = updated.find(item => item["Item Name"] === itemName);
       if (itemToUpdate && itemToUpdate["Exos Part Number"]) {
         const patchUrl = `${GYM_ITEMS_API_URL}/Exos%20Part%20Number/${encodeURIComponent(itemToUpdate["Exos Part Number"])}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}`;
@@ -217,14 +220,11 @@ function App() {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ data: { status } })
-        })
-          .then(res => res.json())
-          .then(result => console.log('SheetDB PATCH result:', result))
-          .catch(err => console.error('SheetDB PATCH error:', err));
+        });
       }
       return { ...prev, [gym]: updated };
     });
-  };
+  }, []);
 
   const handleSearch = (term) => {
     setSearchTerm(term);
@@ -327,30 +327,47 @@ function App() {
           </div>
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', margin: '2rem 0' }}>
-              <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1}>&laquo; Prev</button>
+            <nav className="pagination-bar" aria-label="Product pages">
+              <button
+                className="pagination-btn prev"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                aria-label="Previous page"
+              >
+                &laquo;
+              </button>
               {getPagination().map((page, idx) =>
                 page === '...'
-                  ? <span key={"ellipsis-" + idx} style={{ minWidth: 32, textAlign: 'center' }}>...</span>
+                  ? <span key={"ellipsis-" + idx} className="pagination-ellipsis">...</span>
                   : <button
                       key={page}
+                      className={`pagination-btn${currentPage === page ? ' active' : ''}`}
                       onClick={() => handlePageChange(page)}
-                      style={{ fontWeight: currentPage === page ? 'bold' : 'normal', minWidth: 32, background: currentPage === page ? '#0046be' : undefined, color: currentPage === page ? 'white' : undefined, borderRadius: 4 }}
+                      aria-current={currentPage === page ? 'page' : undefined}
                     >
                       {page}
                     </button>
               )}
-              <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages}>Next &raquo;</button>
-            </div>
+              <button
+                className="pagination-btn next"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                aria-label="Next page"
+              >
+                &raquo;
+              </button>
+            </nav>
           )}
           {!isGymPanelCollapsed && (
-            <GymPanel
-              activeGym={activeGym}
-              gyms={gyms}
-              gymItems={gymItems}
-              handleGymClick={handleGymClick}
-              handleRemoveFromGym={handleRemoveFromGym}
-            />
+            <Suspense fallback={<LoadingState type="gym" />}>
+              <GymPanel
+                activeGym={activeGym}
+                gyms={gyms}
+                gymItems={gymItems}
+                handleGymClick={handleGymClick}
+                handleRemoveFromGym={handleRemoveFromGym}
+              />
+            </Suspense>
           )}
         </div>
       </div>

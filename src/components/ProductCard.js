@@ -165,4 +165,4 @@ ProductCard.propTypes = {
   onAddToGym: PropTypes.func.isRequired,
 };
 
-export default ProductCard; 
+export default React.memo(ProductCard); 

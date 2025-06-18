@@ -42,4 +42,4 @@ Navigation.propTypes = {
   onToggleGymPanel: PropTypes.func.isRequired
 };
 
-export default Navigation; 
+export default React.memo(Navigation); 
