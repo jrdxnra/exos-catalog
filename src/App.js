@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, lazy, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense, useCallback, useRef } from 'react';
 import './App.css';
 import LoadingState from './components/LoadingState';
 import Navigation from './components/Navigation';
@@ -65,9 +65,14 @@ function App() {
 
   const [isGymPanelCollapsed, setIsGymPanelCollapsed] = useState(true);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const PRODUCTS_PER_PAGE = 12;
+  // Infinite scroll states
+  const [visibleProducts, setVisibleProducts] = useState([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const ITEMS_PER_LOAD = 12;
+  const observerRef = useRef();
+  const loadingRef = useRef();
 
   const [initialPreferredOnly, setInitialPreferredOnly] = useState(true);
 
@@ -142,6 +147,79 @@ function App() {
     });
   }, [products, searchTerm, selectedCategory, selectedBrand, showAllItems, initialPreferredOnly]);
 
+  // Reset visible products when filters change
+  useEffect(() => {
+    setVisibleProducts(filteredProducts.slice(0, ITEMS_PER_LOAD));
+    setHasMore(filteredProducts.length > ITEMS_PER_LOAD);
+  }, [filteredProducts]);
+
+  // Infinite scroll intersection observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          loadMoreProducts();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    
+    observerRef.current = observer;
+    
+    if (loadingRef.current) {
+      observer.observe(loadingRef.current);
+    }
+    
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, filteredProducts]);
+
+  // Load more products for infinite scroll
+  const loadMoreProducts = useCallback(() => {
+    if (isLoadingMore || !hasMore) return;
+    
+    setIsLoadingMore(true);
+    
+    setTimeout(() => {
+      const currentLength = visibleProducts.length;
+      const nextBatch = filteredProducts.slice(currentLength, currentLength + ITEMS_PER_LOAD);
+      
+      setVisibleProducts(prev => [...prev, ...nextBatch]);
+      setHasMore(currentLength + ITEMS_PER_LOAD < filteredProducts.length);
+      setIsLoadingMore(false);
+    }, 500); // Simulate loading delay
+  }, [visibleProducts.length, filteredProducts, isLoadingMore, hasMore]);
+
+  // Scroll to top functionality
+  const scrollToTop = () => {
+    console.log('scrollToTop function called'); // Debug log
+    console.log('Current scroll position:', window.scrollY); // Debug current position
+    
+    // Find the content-area element and scroll it
+    const contentArea = document.querySelector('.content-area');
+    if (contentArea) {
+      console.log('Found content-area, scrolling it to top');
+      contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      console.log('Content-area not found, trying window scroll');
+      // Fallback to window scroll
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
+    
+    console.log('Scroll attempted, new position:', window.scrollY); // Debug new position
+  };
+
+  // Show/hide back to top button
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 300);
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   // When user interacts with filters/search, show all products
   useEffect(() => {
     if (searchTerm || selectedCategory || selectedBrand || showAllItems) {
@@ -149,21 +227,7 @@ function App() {
     }
   }, [searchTerm, selectedCategory, selectedBrand, showAllItems]);
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
-  const paginatedProducts = filteredProducts.slice(
-    (currentPage - 1) * PRODUCTS_PER_PAGE,
-    currentPage * PRODUCTS_PER_PAGE
-  );
-
   // Handlers with useCallback
-  const handlePageChange = useCallback((page) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [totalPages]);
-
   const copyProductInfo = useCallback((product) => {
     const productInfo = [
       product["Item Name"] || '',
@@ -241,11 +305,22 @@ function App() {
     } else {
       setShowAllItems(false);
     }
+    // Collapse sidebar when category is selected
+    setIsSidebarExpanded(false);
   };
 
   const handleBrandSelect = (brand) => {
     setSelectedBrand(brand);
     setShowAllItems(true);
+    // Collapse sidebar when brand is selected
+    setIsSidebarExpanded(false);
+  };
+
+  const handleContentClick = (e) => {
+    // Collapse sidebar when clicking in dead space (not on sidebar or navigation)
+    if (isSidebarExpanded && !e.target.closest('.sidebar') && !e.target.closest('.main-nav')) {
+      setIsSidebarExpanded(false);
+    }
   };
 
   const handleReset = (e) => {
@@ -264,29 +339,6 @@ function App() {
     setActiveGym(gym);
   };
 
-  // Modern condensed pagination logic
-  const getPagination = () => {
-    const pages = [];
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      const left = Math.max(1, currentPage - 2);
-      const right = Math.min(totalPages, currentPage + 2);
-      if (left > 2) {
-        pages.push(1, '...');
-      } else {
-        for (let i = 1; i < left; i++) pages.push(i);
-      }
-      for (let i = left; i <= right; i++) pages.push(i);
-      if (right < totalPages - 1) {
-        pages.push('...', totalPages);
-      } else {
-        for (let i = right + 1; i <= totalPages; i++) pages.push(i);
-      }
-    }
-    return pages;
-  };
-
   if (loading) return <LoadingState type="category" message="Loading products..." />;
   if (!products?.length && !loading) return <div className="no-products">No products found</div>;
 
@@ -298,7 +350,7 @@ function App() {
         isGymPanelCollapsed={isGymPanelCollapsed}
         onToggleGymPanel={() => setIsGymPanelCollapsed(!isGymPanelCollapsed)}
       />
-      <div className="main-content">
+      <div className="main-content" onClick={handleContentClick}>
         <Sidebar
           categories={categories}
           brands={brands}
@@ -314,9 +366,9 @@ function App() {
         <div className={`content-area ${isSidebarExpanded ? 'sidebar-expanded' : ''}`}>
           <div className="products-container">
             <Suspense fallback={<LoadingState type="products" />}>
-              {paginatedProducts.map((product, index) => (
+              {visibleProducts.map((product, index) => (
                 <ProductCard
-                  key={index}
+                  key={`${product["Exos Part Number"]}-${index}`}
                   product={product}
                   onCopyInfo={copyProductInfo}
                   copySuccess={copySuccess}
@@ -324,40 +376,90 @@ function App() {
                 />
               ))}
             </Suspense>
+            
+            {/* Infinite scroll loading indicator */}
+            {hasMore && (
+              <div ref={loadingRef} className="infinite-scroll-loader">
+                {isLoadingMore ? (
+                  <div className="loading-spinner-container">
+                    <div className="custom-loading-spinner">🏋️</div>
+                    <p>Loading more equipment...</p>
+                  </div>
+                ) : (
+                  <div className="scroll-hint">
+                    <p>Scroll for more equipment</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <nav className="pagination-bar" aria-label="Product pages">
-              <button
-                className="pagination-btn prev"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                aria-label="Previous page"
-              >
-                &laquo;
-              </button>
-              {getPagination().map((page, idx) =>
-                page === '...'
-                  ? <span key={"ellipsis-" + idx} className="pagination-ellipsis">...</span>
-                  : <button
-                      key={page}
-                      className={`pagination-btn${currentPage === page ? ' active' : ''}`}
-                      onClick={() => handlePageChange(page)}
-                      aria-current={currentPage === page ? 'page' : undefined}
-                    >
-                      {page}
-                    </button>
-              )}
-              <button
-                className="pagination-btn next"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                aria-label="Next page"
-              >
-                &raquo;
-              </button>
-            </nav>
+          
+          {/* End of results - moved outside products-container */}
+          <div 
+            className="end-of-results"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Mouse down - starting scroll'); // Debug log
+              
+              // Add visual feedback
+              const element = e.currentTarget;
+              element.style.transform = 'scale(0.9)';
+              element.style.backgroundColor = '#ff0000';
+              
+              // Start scrolling
+              const contentArea = document.querySelector('.content-area');
+              if (contentArea) {
+                const scrollInterval = setInterval(() => {
+                  contentArea.scrollBy(0, -35); // Scroll up by 35px each interval (faster)
+                }, 16); // ~60fps
+                
+                // Store the interval ID on the element so we can clear it on mouse up
+                element.scrollInterval = scrollInterval;
+              }
+            }}
+            onMouseUp={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Mouse up - stopping scroll'); // Debug log
+              
+              // Remove visual feedback
+              const element = e.currentTarget;
+              element.style.transform = '';
+              element.style.backgroundColor = '';
+              
+              // Stop scrolling
+              if (element.scrollInterval) {
+                clearInterval(element.scrollInterval);
+                element.scrollInterval = null;
+              }
+            }}
+            onMouseLeave={(e) => {
+              // Also stop scrolling if mouse leaves the button
+              const element = e.currentTarget;
+              element.style.transform = '';
+              element.style.backgroundColor = '';
+              
+              if (element.scrollInterval) {
+                clearInterval(element.scrollInterval);
+                element.scrollInterval = null;
+              }
+            }}
+          >
+            ▲
+          </div>
+          
+          {/* Back to Top Button */}
+          {showBackToTop && (
+            <button 
+              onClick={scrollToTop} 
+              className="back-to-top-button"
+              aria-label="Back to top"
+            >
+              ↑
+            </button>
           )}
+          
           {!isGymPanelCollapsed && (
             <Suspense fallback={<LoadingState type="gym" />}>
               <GymPanel
