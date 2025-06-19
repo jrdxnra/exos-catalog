@@ -1,39 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 
-function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym }) {
+const STATUS_OPTIONS = [
+  { value: 'Hold', label: 'Hold', color: '#ffc107', bgColor: '#fff3cd', description: 'Buy Later List' },
+  { value: 'Waitlist', label: 'Waitlist', color: '#6c757d', bgColor: '#f8f9fa', description: 'Waiting for Approval' },
+  { value: 'Pending Approval', label: 'Pending Approval', color: '#007bff', bgColor: '#cce7ff', description: 'Manager Review' },
+  { value: 'Approved', label: 'Approved', color: '#28a745', bgColor: '#d4edda', description: 'Ready for Procurement' },
+  { value: 'Not Approved', label: 'Not Approved', color: '#dc3545', bgColor: '#f8d7da', description: 'Requires Note' },
+];
+
+function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuses, onStatusChange, statusNotes, onNoteSubmit }) {
   const [quantity, setQuantity] = useState('1');
   const [selectedGym, setSelectedGym] = useState('');
   const [customQty, setCustomQty] = useState('');
   const [previewUrl, setPreviewUrl] = useState("https://via.placeholder.com/300x200?text=Loading...");
-  const [loading, setLoading] = useState(!!product.URL);
-
-  const handleQuantityChange = (e) => {
-    const value = e.target.value;
-    if (value === 'custom') {
-      setQuantity('custom');
-      setCustomQty('');
-    } else {
-      setQuantity(value);
-      setCustomQty('');
-    }
-  };
-
-  const handleCustomQtyChange = (e) => {
-    const value = e.target.value;
-    if (/^\d*$/.test(value)) {
-      setCustomQty(value);
-    }
-  };
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteText, setNoteText] = useState('');
 
   const handleAddToGym = () => {
     const qty = quantity === 'custom' ? parseInt(customQty, 10) : parseInt(quantity, 10);
     if (selectedGym && qty > 0) {
-      onAddToGym(product, selectedGym, qty);
+      onAddToGym(product, selectedGym, qty, currentStatus);
       setQuantity('1');
       setCustomQty('');
       setSelectedGym('');
     }
+  };
+
+  const handleStatusChange = (status) => {
+    if (status === 'Not Approved') {
+      setShowNoteModal(true);
+    } else {
+      onStatusChange(product["Item Name"], status);
+    }
+  };
+
+  const handleNoteSubmit = () => {
+    if (noteText.trim()) {
+      onNoteSubmit(product["Item Name"], noteText);
+      setNoteText('');
+      setShowNoteModal(false);
+    }
+  };
+
+  const handleNoteCancel = () => {
+    setNoteText('');
+    setShowNoteModal(false);
   };
 
   // Format cost to ensure single $ symbol
@@ -42,6 +54,9 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym }) {
     // Remove any existing $ symbols and add a single one
     return `$${cost.replace(/[$]/g, '')}`;
   };
+
+  const currentStatus = itemStatuses?.[product["Item Name"]] || '';
+  const currentNote = statusNotes?.[product["Item Name"]] || '';
 
   useEffect(() => {
     let isMounted = true;
@@ -56,10 +71,11 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym }) {
           }
         })
         .catch(() => setPreviewUrl("https://via.placeholder.com/300x200?text=No+Preview"))
-        .finally(() => setLoading(false));
+        .finally(() => {
+          // Loading state is handled implicitly by the useEffect
+        });
     } else {
       setPreviewUrl("https://via.placeholder.com/300x200?text=No+Preview");
-      setLoading(false);
     }
     return () => { isMounted = false; };
   }, [product.URL]);
@@ -105,31 +121,52 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym }) {
           )}
         </div>
 
+        {/* Show note for Not Approved items */}
+        {currentStatus === 'Not Approved' && currentNote && (
+          <div className="status-note">
+            <strong>Note:</strong> {currentNote}
+          </div>
+        )}
+
         <div className="product-actions">
-          <div style={{ display: 'flex', flexDirection: 'row', gap: '1rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <input
-              list="gyms"
-              value={selectedGym}
-              onChange={e => setSelectedGym(e.target.value)}
-              className="gym-select"
-              style={{ width: '90px', height: '38px' }}
-              placeholder="Select Gym"
-            />
-            <datalist id="gyms">
-              <option value="MP2" />
-              <option value="MAT3" />
-              <option value="MP5" />
-            </datalist>
-            <div style={{ flex: 1 }}></div>
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
             <input
               type="number"
               min="1"
               value={quantity}
               onChange={e => setQuantity(e.target.value.replace(/^0+/, ''))}
               className="quantity-input"
-              style={{ width: '90px', height: '38px' }}
+              style={{ width: '60px', height: '38px' }}
               placeholder="Qty"
             />
+            <select
+              value={selectedGym}
+              onChange={e => setSelectedGym(e.target.value)}
+              className="gym-select"
+              style={{ width: '90px', height: '38px' }}
+            >
+              <option value="">Gym</option>
+              <option value="MP2">MP2</option>
+              <option value="MAT3">MAT3</option>
+              <option value="MP5">MP5</option>
+            </select>
+            <select
+              className="status-select"
+              value={currentStatus}
+              onChange={e => handleStatusChange(e.target.value)}
+              data-status={currentStatus}
+              style={{ width: 'calc(100% - 160px)', height: '38px' }}
+            >
+              <option value="">Status</option>
+              {STATUS_OPTIONS.map(opt => (
+                <option 
+                  key={opt.value} 
+                  value={opt.value}
+                >
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
           <button
             onClick={handleAddToGym}
@@ -146,6 +183,36 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym }) {
           </button>
         </div>
       </div>
+
+      {/* Note Modal for Not Approved Status */}
+      {showNoteModal && (
+        <div className="note-modal-overlay">
+          <div className="note-modal">
+            <h3>Add Note for "Not Approved"</h3>
+            <p>Please provide a reason why this item was not approved:</p>
+            <textarea
+              className="note-textarea"
+              placeholder="Enter reason for disapproval..."
+              rows="3"
+              value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                  handleNoteSubmit();
+                }
+              }}
+            />
+            <div className="note-modal-buttons">
+              <button onClick={handleNoteSubmit}>
+                Submit
+              </button>
+              <button onClick={handleNoteCancel}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -163,6 +230,10 @@ ProductCard.propTypes = {
   onCopyInfo: PropTypes.func.isRequired,
   copySuccess: PropTypes.string,
   onAddToGym: PropTypes.func.isRequired,
+  itemStatuses: PropTypes.object,
+  onStatusChange: PropTypes.func,
+  statusNotes: PropTypes.object,
+  onNoteSubmit: PropTypes.func,
 };
 
 export default React.memo(ProductCard); 
