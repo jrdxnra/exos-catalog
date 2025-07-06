@@ -9,13 +9,26 @@ const STATUS_OPTIONS = [
   { value: 'Not Approved', label: 'Not Approved', color: '#dc3545', bgColor: '#f8d7da', description: 'Requires Note' },
 ];
 
-function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuses, onStatusChange, statusNotes, onNoteSubmit }) {
+function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuses, onStatusChange, statusNotes, onNoteSubmit, activeGym }) {
   const [quantity, setQuantity] = useState('1');
   const [selectedGym, setSelectedGym] = useState('');
   const [customQty, setCustomQty] = useState('');
   const [previewUrl, setPreviewUrl] = useState("https://via.placeholder.com/300x200?text=Loading...");
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteText, setNoteText] = useState('');
+  const [manualGym, setManualGym] = useState(false);
+
+  // If activeGym changes and user hasn't manually selected a gym, update selectedGym
+  useEffect(() => {
+    if (!manualGym) {
+      setSelectedGym(activeGym || '');
+    }
+  }, [activeGym, manualGym]);
+
+  const handleGymChange = (e) => {
+    setSelectedGym(e.target.value);
+    setManualGym(true);
+  };
 
   const handleAddToGym = () => {
     const qty = quantity === 'custom' ? parseInt(customQty, 10) : parseInt(quantity, 10);
@@ -106,19 +119,30 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuse
         <div className="product-card-header">
           <div className="title-container">
             <h3 className="product-title-fixed">{product["Item Name"]}</h3>
-            {product.Preferred?.toLowerCase() === 'yes' && (
-              <span className="preferred-badge"><span role="img" aria-label="star">⭐</span> Preferred Item</span>
+            {product.Preferred && (
+              <span className="preferred-badge">
+                {(product.Preferred === 'P' || product.Preferred === 'YES' || product.Preferred === 'TRUE') && <span role="img" aria-label="star">⭐</span>}
+                {(product.Preferred === 'C' || product.Preferred === 'COACH' || product.Preferred === 'RECOMMENDED') && <span role="img" aria-label="trophy">🏆</span>}
+                {product.Preferred === 'P/C' && <span role="img" aria-label="star and trophy">⭐🏆</span>}
+                {(product.Preferred === 'P' || product.Preferred === 'YES' || product.Preferred === 'TRUE') && ' Preferred Item'}
+                {(product.Preferred === 'C' || product.Preferred === 'COACH' || product.Preferred === 'RECOMMENDED') && ' Coach\'s Recommended'}
+                {product.Preferred === 'P/C' && ' Preferred & Coach\'s Recommended'}
+              </span>
             )}
           </div>
         </div>
 
         <div className="product-details">
-          <p className="product-brand">{product.Brand}</p>
-          <p className="product-category">{product.Category}</p>
-          {product.Cost && <p className="product-cost">{formatCost(product.Cost)}</p>}
-          {product["Exos Part Number"] && (
-            <p className="product-part-number">{product["Exos Part Number"]}</p>
-          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <p className="product-brand" style={{ margin: 0 }}>{product.Brand}</p>
+            <p className="product-category" style={{ margin: 0, textAlign: 'right' }}>{product.Category}</p>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p className="product-part-number" style={{ margin: 0 }}>
+              {product["Exos Part Number"] || product["Part Number"] || product["part_number"] || 'No Part Number'}
+            </p>
+            {product.Cost && <p className="product-cost" style={{ margin: 0, textAlign: 'right' }}>{formatCost(product.Cost)}</p>}
+          </div>
         </div>
 
         {/* Show note for Not Approved items */}
@@ -141,7 +165,7 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuse
             />
             <select
               value={selectedGym}
-              onChange={e => setSelectedGym(e.target.value)}
+              onChange={handleGymChange}
               className="gym-select"
               style={{ width: '90px', height: '38px' }}
             >
@@ -234,6 +258,7 @@ ProductCard.propTypes = {
   onStatusChange: PropTypes.func,
   statusNotes: PropTypes.object,
   onNoteSubmit: PropTypes.func,
+  activeGym: PropTypes.string,
 };
 
 export default React.memo(ProductCard); 

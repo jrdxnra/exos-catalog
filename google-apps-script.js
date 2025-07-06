@@ -15,6 +15,8 @@ function doPost(e) {
       return updateItems(items);
     } else if (action === 'delete') {
       return deleteItems(items);
+    } else if (action === 'getAllItems') {
+      return getAllItems();
     } else {
       return ContentService.createTextOutput(JSON.stringify({
         success: false,
@@ -31,11 +33,51 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  // Simple GET endpoint for testing
+  try {
+    const action = e.parameter.action || e.parameter.type || e.parameter.data;
+    
+    if (action === 'getCatalog' || action === 'catalog') {
+      return getCatalogData();
+    } else {
+      // Simple GET endpoint for testing
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: 'Google Apps Script is running',
+        timestamp: new Date().toISOString()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch (error) {
+    console.error('Error in doGet:', error);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function getCatalogData() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Equipment List');
+  if (!sheet) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: 'Equipment List sheet not found'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+  
+  const items = data.map(row => {
+    const item = {};
+    headers.forEach((header, index) => {
+      item[header] = row[index];
+    });
+    return item;
+  });
+  
   return ContentService.createTextOutput(JSON.stringify({
     success: true,
-    message: 'Google Apps Script is running',
-    timestamp: new Date().toISOString()
+    items: items
   })).setMimeType(ContentService.MimeType.JSON);
 }
 

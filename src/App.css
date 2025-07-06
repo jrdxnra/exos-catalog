@@ -48,10 +48,9 @@
 /* Products container and card styles */
 .products-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 25px;
-  padding: 0 20px;
-  max-width: 1400px;
+  padding: 0 10px;
   margin: 0 auto;
 }
 
@@ -159,8 +158,8 @@
 .product-details {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: -4px;
+  margin-bottom: -4px;
   text-align: left;
 }
 
@@ -689,8 +688,8 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes progress {
@@ -725,7 +724,7 @@
   transition: margin-left 0.6s ease;
   background: #f8f9fa;
   min-height: calc(100vh - 60px);
-  padding: 20px;
+  padding: 10px;
   width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
@@ -734,6 +733,8 @@
 .content-area.sidebar-expanded {
   margin-left: 350px;
 }
+
+
 
 /* Sidebar Styles */
 .sidebar {
@@ -809,7 +810,7 @@
 }
 
 .gym-badge {
-  background: #dc3545;
+  background: #007bff;
   color: white;
   border-radius: 10px;
   padding: 2px 6px;
@@ -937,7 +938,7 @@
 }
 
 /* Navigation Styles */
-.nav-chevron-left {
+.nav-chevron-left, .nav-chevron-right {
   position: absolute;
   left: 8px;
   top: 0;
@@ -947,18 +948,63 @@
   color: white;
   z-index: 2;
   padding-left: 8px;
+  font-size: 1.5em;
+  transition: transform 0.2s cubic-bezier(0.4,0,0.2,1), letter-spacing 0.2s cubic-bezier(0.4,0,0.2,1);
+  letter-spacing: 0.02em;
 }
 
 .nav-chevron-right {
-  position: absolute;
+  left: auto;
   right: 8px;
-  top: 0;
-  height: 100%;
+  padding-left: 0;
+  padding-right: 8px;
+}
+
+.nav-chevron-left:hover, .nav-chevron-right:hover {
+  transform: scale(1.1);
+  letter-spacing: 0.1em;
+  background: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* Search Icon Styles - matching existing hover effects */
+.search-icon-button {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
   background: none;
   border: none;
-  color: white;
-  z-index: 2;
-  padding-right: 8px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1002;
+  letter-spacing: 0.02em;
+}
+
+.search-icon-button:hover {
+  transform: translateY(-50%) scale(1.1);
+  letter-spacing: 0.1em;
+  background: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.search-icon-button svg {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.search-icon-button:hover svg {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+}
+
+.search-icon-active {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
 }
 
 /* Navigation Title Styles */
@@ -967,11 +1013,16 @@
   border: none;
   padding: 0;
   cursor: pointer;
-  transition: opacity 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.02em;
 }
 
 .nav-title:hover {
-  opacity: 0.8;
+  transform: scale(1.05);
+  letter-spacing: 0.08em;
+  background: none !important;
+  box-shadow: none !important;
+  border: none !important;
 }
 
 .nav-title h1 {
@@ -1181,6 +1232,54 @@
     padding: 10px;
     gap: 10px;
   }
+  
+  /* Mobile search icon styling */
+  .search-icon-button {
+    padding: 12px !important;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  .search-icon-button svg {
+    width: 24px !important;
+    height: 24px !important;
+  }
+  
+  /* Mobile navigation search styling */
+  .nav-search-container {
+    right: 50px !important;
+  }
+  
+  .nav-search-container input {
+    font-size: 14px !important;
+    padding: 6px 8px !important;
+  }
+  
+  .nav-search-container button {
+    min-width: 28px;
+    min-height: 28px;
+  }
+  
+  .nav-search-container > div {
+    max-width: 180px !important;
+    min-width: 140px !important;
+  }
+}
+
+/* Extra small mobile devices */
+@media (max-width: 360px) {
+  .nav-search-container {
+    right: 45px !important;
+  }
+  
+  .nav-search-container > div {
+    max-width: 140px !important;
+    min-width: 120px !important;
+  }
+  
+  .nav-search-container input {
+    font-size: 12px !important;
+  }
 }
 
 /* Product Status Section */
@@ -1365,30 +1464,45 @@
   background-color: #fff3cd;
   color: #856404;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23856404' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 8px center;
+  background-repeat: no-repeat;
+  background-size: 16px 12px;
 }
 
 .status-select[data-status="Waitlist"] {
   background-color: #f8f9fa;
   color: #6c757d;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236c757d' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 8px center;
+  background-repeat: no-repeat;
+  background-size: 16px 12px;
 }
 
 .status-select[data-status="Pending Approval"] {
   background-color: #cce7ff;
   color: #004085;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23004085' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 8px center;
+  background-repeat: no-repeat;
+  background-size: 16px 12px;
 }
 
 .status-select[data-status="Approved"] {
   background-color: #d4edda;
   color: #155724;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23155724' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 8px center;
+  background-repeat: no-repeat;
+  background-size: 16px 12px;
 }
 
 .status-select[data-status="Not Approved"] {
   background-color: #f8d7da;
   color: #721c24;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23721c24' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 8px center;
+  background-repeat: no-repeat;
+  background-size: 16px 12px;
 }
 
 /* Dropdown option styling */
@@ -1488,4 +1602,32 @@
   border-color: #007bff;
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1), 0 4px 12px rgba(0, 123, 255, 0.2);
   background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+}
+
+/* Rate Limit Warning Animation */
+@keyframes slideDown {
+  from {
+    transform: translateX(-50%) translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Save Button Spinner Animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Search Overlay Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

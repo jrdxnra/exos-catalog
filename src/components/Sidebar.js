@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 const STATUS_OPTIONS = [
@@ -30,23 +30,59 @@ const Sidebar = ({
   onStatusChange,
   statusNotes,
   onNoteSubmit,
-  saveGymItems
+  saveGymItems,
+  isSaving,
+  // Tab control
+  activeTab,
+  onTabChange
 }) => {
-  const [activeTab, setActiveTab] = useState('filters'); // 'filters' or 'gyms'
   const [copySuccess, setCopySuccess] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [currentItemForNote, setCurrentItemForNote] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'pending', 'approved', 'not-approved', 'hold', 'waitlist'
+  
+  // Collapsible sections state
+  const [categoriesExpanded, setCategoriesExpanded] = useState(false);
+  const [brandsExpanded, setBrandsExpanded] = useState(false);
+  const itemClickedRef = useRef(false);
 
   const handleCategoryClick = (e, category) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent the click from bubbling up to the section header
+    itemClickedRef.current = true; // Mark that an item was clicked
     onCategoryChange(category);
+    // Reset the flag after a short delay
+    setTimeout(() => {
+      itemClickedRef.current = false;
+    }, 100);
   };
 
   const handleBrandClick = (e, brand) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent the click from bubbling up to the section header
+    itemClickedRef.current = true; // Mark that an item was clicked
     onBrandChange(brand);
+    // Reset the flag after a short delay
+    setTimeout(() => {
+      itemClickedRef.current = false;
+    }, 100);
+  };
+
+  const handleCategoryHeaderClick = (e) => {
+    // Don't toggle if an item was just clicked
+    if (itemClickedRef.current || e.target.closest('.category-item')) {
+      return;
+    }
+    setCategoriesExpanded(!categoriesExpanded);
+  };
+
+  const handleBrandHeaderClick = (e) => {
+    // Don't toggle if an item was just clicked
+    if (itemClickedRef.current || e.target.closest('.brand-item')) {
+      return;
+    }
+    setBrandsExpanded(!brandsExpanded);
   };
 
   const handleStatusChange = (itemName, status) => {
@@ -198,8 +234,8 @@ const Sidebar = ({
 
         .gym-badge {
           position: absolute;
-          top: 5px;
-          right: 5px;
+          top: -5px;
+          right: -5px;
           background: #dc3545;
           color: white;
           border-radius: 50%;
@@ -524,55 +560,81 @@ const Sidebar = ({
           font-style: italic;
         }
 
+        .categories-section h3,
+        .brands-section h3 {
+          margin-bottom: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          color: #333;
+        }
+
         .categories-section,
         .brands-section {
           margin-bottom: 20px;
         }
 
-        .categories-section h3,
-        .brands-section h3 {
-          margin: 0 0 10px 0;
-          font-size: 16px;
-          color: #333;
-          font-weight: 600;
-        }
-
         .category-list,
         .brand-list {
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
+          display: block;
+        }
+
+        .category-list.collapsed,
+        .brand-list.collapsed {
+          max-height: 0;
+          overflow: hidden;
+          transition: max-height 0.3s ease;
+          margin: 0;
+          padding: 0;
+        }
+
+        .category-list.expanded,
+        .brand-list.expanded {
+          max-height: 500px;
+          overflow: visible;
+          transition: max-height 0.3s ease;
+          margin-top: 8px;
         }
 
         .category-item,
         .brand-item {
-          padding: 8px 12px;
+          padding: 6px 10px;
           border: none;
-          background: white;
-          cursor: pointer;
+          background: none;
           text-align: left;
+          cursor: pointer;
           border-radius: 4px;
-          transition: all 0.2s ease;
-          font-size: 14px;
+          font-size: 0.85em;
           color: #333;
-          border-left: 3px solid transparent;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          transition: all 0.2s ease;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          margin: 0 0 4px 0;
+          display: block;
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .category-item:last-child,
+        .brand-item:last-child {
+          margin-bottom: 0;
         }
 
         .category-item:hover,
         .brand-item:hover {
-          background: #f0f7ff;
-          color: #0046be;
-          border-left-color: #0046be;
-          transform: translateX(2px);
+          background: #f8f9fa;
+          color: #007bff;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .category-item.active,
         .brand-item.active {
-          background: #0046be;
-          color: white;
-          border-left-color: #003a9e;
-          box-shadow: 0 4px 16px 0 rgba(0,70,190,0.18), 0 0 0 2px #0046be;
+          background: #f0f7ff;
+          color: #007bff;
+          font-weight: 600;
+          border-bottom: 2px solid #007bff;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         /* Note Modal Styles */
@@ -808,6 +870,47 @@ const Sidebar = ({
           border-color: #007bff;
           box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
         }
+
+        .special-filters {
+          margin-bottom: 16px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid #e9ecef;
+        }
+
+        .categories-subsection {
+          margin-top: 8px;
+        }
+
+        .section-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          cursor: pointer;
+          padding: 8px 0;
+          border-bottom: 1px solid #e9ecef;
+          margin-bottom: 8px;
+          transition: background-color 0.2s ease;
+        }
+
+        .section-header:hover {
+          background-color: #e9ecef;
+          border-radius: 4px;
+          padding: 8px 4px;
+          margin: 0 -4px 8px -4px;
+        }
+
+        .section-header h3 {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 600;
+          color: #333;
+        }
+
+        .toggle-icon {
+          font-size: 12px;
+          color: #6c757d;
+          transition: transform 0.2s ease;
+        }
       `}</style>
 
       <div className="sidebar-content">
@@ -815,13 +918,13 @@ const Sidebar = ({
         <div className="sidebar-tabs">
           <button 
             className={`sidebar-tab ${activeTab === 'filters' ? 'active' : ''}`}
-            onClick={() => setActiveTab('filters')}
+            onClick={() => onTabChange('filters')}
           >
             Filters
           </button>
           <button 
             className={`sidebar-tab ${activeTab === 'gyms' ? 'active' : ''}`}
-            onClick={() => setActiveTab('gyms')}
+            onClick={() => onTabChange('gyms')}
           >
             Gyms
             {Object.values(gymItems).some(items => items.length > 0) && (
@@ -846,8 +949,8 @@ const Sidebar = ({
             </div>
 
             <div className="categories-section">
-              <h3>Categories</h3>
-              <div className="category-list">
+              {/* Special filters - always visible */}
+              <div className="special-filters">
                 <button
                   key="preferred-items"
                   className={`category-item ${selectedCategory === 'preferred' ? 'active' : ''}`}
@@ -856,37 +959,61 @@ const Sidebar = ({
                   <span role="img" aria-label="star">⭐</span> Preferred Items
                 </button>
                 <button
+                  key="coach-recommended"
+                  className={`category-item ${selectedCategory === 'coach-recommended' ? 'active' : ''}`}
+                  onClick={(e) => handleCategoryClick(e, 'coach-recommended')}
+                >
+                  <span role="img" aria-label="trophy">🏆</span> Coach's Recommended
+                </button>
+                <button
                   key="all-categories"
                   className={`category-item ${!selectedCategory ? 'active' : ''}`}
                   onClick={(e) => handleCategoryClick(e, '')}
                 >
                   All Categories
                 </button>
-                {categories.map((category) => (
-                  <button
-                    key={category}
-                    className={`category-item ${selectedCategory === category ? 'active' : ''}`}
-                    onClick={(e) => handleCategoryClick(e, category)}
-                  >
-                    {category}
-                  </button>
-                ))}
+              </div>
+              
+              {/* Individual categories - collapsible */}
+              <div className="categories-subsection">
+                <div className="section-header" onClick={handleCategoryHeaderClick}>
+                  <h3>Categories</h3>
+                  <span className="toggle-icon">{categoriesExpanded ? '▼' : '▶'}</span>
+                </div>
+                {categoriesExpanded && (
+                  <div className="categories-list">
+                    {categories.map((category) => (
+                      <div
+                        key={category}
+                        className={`filter-item category-item ${selectedCategory === category ? 'active' : ''}`}
+                        onClick={(e) => handleCategoryClick(e, category)}
+                      >
+                        {category}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="brands-section">
-              <h3>Brands</h3>
-              <div className="brand-list">
-                {brands.map((brand) => (
-                  <button
-                    key={brand}
-                    className={`brand-item ${selectedBrand === brand ? 'active' : ''}`}
-                    onClick={(e) => handleBrandClick(e, brand)}
-                  >
-                    {brand}
-                  </button>
-                ))}
+              <div className="section-header" onClick={handleBrandHeaderClick}>
+                <h3>Brands</h3>
+                <span className="toggle-icon">{brandsExpanded ? '▼' : '▶'}</span>
               </div>
+              {brandsExpanded && (
+                <div className="brands-list">
+                  {brands.map((brand) => (
+                    <div
+                      key={brand}
+                      className={`filter-item brand-item ${selectedBrand === brand ? 'active' : ''}`}
+                      onClick={(e) => handleBrandClick(e, brand)}
+                    >
+                      {brand}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -943,10 +1070,23 @@ const Sidebar = ({
                       <div key={index} className="gym-item gym-item-row">
                         {/* Left side: Item Info */}
                         <div className="gym-item-info">
-                          <div className="gym-item-name">{item["Item Name"]}</div>
+                          <div className="gym-item-name">
+                            {item["Item Name"]}
+                            {(item.Preferred === 'P' || item.Preferred === 'YES' || item.Preferred === 'TRUE') && (
+                              <span role="img" aria-label="star"> ⭐</span>
+                            )}
+                            {(item.Preferred === 'C' || item.Preferred === 'COACH' || item.Preferred === 'RECOMMENDED') && (
+                              <span role="img" aria-label="trophy"> 🏆</span>
+                            )}
+                            {item.Preferred === 'P/C' && (
+                              <span role="img" aria-label="star and trophy"> ⭐🏆</span>
+                            )}
+                          </div>
                           <div className="gym-item-details">
                             <div className="gym-item-brand">{item.Brand}</div>
-                            <div className="gym-item-part-number">{item["Exos Part Number"]}</div>
+                            <div className="gym-item-part-number">
+                              {item["Exos Part Number"] || item["Part Number"] || item["part_number"] || 'No Part Number'}
+                            </div>
                           </div>
                         </div>
                         {/* Right side: Status, Quantity and Price */}
@@ -990,8 +1130,22 @@ const Sidebar = ({
               )}
               
               {/* Always show Save and Copy buttons */}
-              <button className="save-button" onClick={saveGymItems}>
-                💾 Save
+              <button 
+                className="save-button" 
+                onClick={saveGymItems}
+                disabled={isSaving}
+                style={{
+                  opacity: isSaving ? 0.7 : 1,
+                  cursor: isSaving ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <span style={{ 
+                  display: 'inline-block',
+                  animation: isSaving ? 'spin 1s linear infinite' : 'none'
+                }}>
+                  💾
+                </span>
+                {isSaving ? ' Saving...' : ' Save'}
               </button>
               <button className="copy-list-button" onClick={handleCopyList}>
                 {copySuccess ? 'Copied!' : 'Copy List'}
@@ -1055,7 +1209,11 @@ Sidebar.propTypes = {
   onStatusChange: PropTypes.func,
   statusNotes: PropTypes.object,
   onNoteSubmit: PropTypes.func,
-  saveGymItems: PropTypes.func
+  saveGymItems: PropTypes.func,
+  isSaving: PropTypes.bool,
+  // Tab control
+  activeTab: PropTypes.string,
+  onTabChange: PropTypes.func
 };
 
 export default React.memo(Sidebar); 
