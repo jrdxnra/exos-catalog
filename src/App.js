@@ -51,7 +51,6 @@ const mockData = [
 ];
 
 const GYM_ITEMS_API_URL = 'https://sheetdb.io/api/v1/uwc1t04gagpfq'; // Reverted to old endpoint to maintain data
-const GYM_ITEMS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyPDJRGyVH0H9LCRBS4uMowMPE59KphrQf7g16RpbkrztR36OKGmSKMCpdA8uTAD62C/exec';
 const SHEETDB_TAB_NAME = 'Gym Items List';
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbyPDJRGyVH0H9LCRBS4uMowMPE59KphrQf7g16RpbkrztR36OKGmSKMCpdA8uTAD62C/exec';
 
@@ -194,7 +193,6 @@ function App() {
         ];
         
         let data = null;
-        let successfulUrl = null;
         
         for (const url of urls) {
           try {
@@ -210,7 +208,6 @@ function App() {
                 (responseData && typeof responseData === 'object' && 
                  (responseData.data || responseData.values || responseData.rows || responseData.items))) {
               data = responseData;
-              successfulUrl = url;
               console.log('Found catalog data at:', url);
               break;
             }
@@ -240,7 +237,6 @@ function App() {
               
               if (postData.success && postData.items) {
                 data = postData.items;
-                successfulUrl = 'POST to Google Apps Script';
                 console.log('Found catalog data via POST');
               }
             }
