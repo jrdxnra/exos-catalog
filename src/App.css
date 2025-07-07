@@ -1393,6 +1393,25 @@
     padding-right: 8px !important;
   }
   
+  /* Hide quantity input arrows on mobile */
+  .quantity-input {
+    -webkit-appearance: none !important;
+    -moz-appearance: textfield !important;
+    appearance: none !important;
+  }
+  
+  .quantity-input::-webkit-outer-spin-button,
+  .quantity-input::-webkit-inner-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+  }
+  
+  /* Hide status dropdown arrows in sidebar on mobile */
+  .gym-item-status {
+    background-image: none !important;
+    padding-right: 8px !important;
+  }
+  
   /* Hide dropdown arrows for status variants on mobile */
   .status-select[data-status="Hold"],
   .status-select[data-status="Waitlist"],
@@ -1402,6 +1421,32 @@
     background-image: none !important;
     padding-right: 8px !important;
   }
+}
+
+/* Hide status dropdown arrows in sidebar on all screen sizes */
+.gym-item-status {
+  background-image: none !important;
+  padding-right: 8px !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+}
+
+/* More specific targeting for sidebar status dropdowns */
+.sidebar .gym-item-status {
+  background-image: none !important;
+  padding-right: 8px !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  outline: none !important;
+  border: 1px solid #ced4da !important;
+}
+
+.sidebar .gym-item-status:focus {
+  outline: none !important;
+  border: 1px solid #ced4da !important;
+  box-shadow: none !important;
 }
 
 
