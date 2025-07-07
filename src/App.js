@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, lazy, Suspense, useCallback, useRef } from 'react';
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import './App.css';
 import LoadingState from './components/LoadingState';
 import Navigation from './components/Navigation';
@@ -1498,6 +1499,9 @@ function App() {
           )}
         </div>
       </div>
+      
+      {/* Vercel Speed Insights */}
+      <SpeedInsights />
     </div>
   );
 }
