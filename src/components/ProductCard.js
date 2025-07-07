@@ -9,7 +9,7 @@ const STATUS_OPTIONS = [
   { value: 'Not Approved', label: 'Not Approved', color: '#dc3545', bgColor: '#f8d7da', description: 'Requires Note' },
 ];
 
-function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuses, onStatusChange, statusNotes, onNoteSubmit, activeGym }) {
+function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuses, onStatusChange, statusNotes, onNoteSubmit, activeGym, gyms }) {
   const [quantity, setQuantity] = useState('1');
   const [selectedGym, setSelectedGym] = useState('');
   const [customQty, setCustomQty] = useState('');
@@ -170,9 +170,9 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuse
               style={{ width: '90px', height: '38px' }}
             >
               <option value="">Gym</option>
-              <option value="MP2">MP2</option>
-              <option value="MAT3">MAT3</option>
-              <option value="MP5">MP5</option>
+              {gyms.map((gym) => (
+                <option key={gym} value={gym}>{gym}</option>
+              ))}
             </select>
             <select
               className="status-select"
@@ -259,6 +259,7 @@ ProductCard.propTypes = {
   statusNotes: PropTypes.object,
   onNoteSubmit: PropTypes.func,
   activeGym: PropTypes.string,
+  gyms: PropTypes.arrayOf(PropTypes.string),
 };
 
 export default React.memo(ProductCard); 

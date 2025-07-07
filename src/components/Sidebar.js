@@ -178,7 +178,7 @@ const Sidebar = ({
     <div className={`sidebar ${isExpanded ? 'expanded' : 'collapsed'}`}>
       <style jsx>{`
         .sidebar {
-          width: 350px;
+          width: 0;
           background: #f8f9fa;
           border-right: 1px solid #dee2e6;
           height: calc(100vh - 60px);
@@ -188,19 +188,35 @@ const Sidebar = ({
           left: 0;
           top: 60px;
           z-index: 1000;
-          transform: translateX(-100%);
         }
 
         .sidebar.expanded {
-          transform: translateX(0);
+          width: 280px;
         }
 
         .sidebar.collapsed {
-          transform: translateX(-100%);
+          width: 0;
+        }
+
+        /* Mobile sidebar adjustments */
+        @media (max-width: 768px) {
+          .sidebar.expanded {
+            width: 220px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .sidebar.expanded {
+            width: 180px;
+          }
         }
 
         .sidebar-content {
-          padding: 6px 4px;
+          padding: 8px;
+          width: 100%;
+          box-sizing: border-box;
+          height: 100%;
+          overflow-y: auto;
         }
 
         .sidebar-tabs {
@@ -249,6 +265,8 @@ const Sidebar = ({
 
         .search-section {
           margin-bottom: 20px;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         .sidebar-search {
@@ -257,30 +275,36 @@ const Sidebar = ({
           border: 1px solid #ced4da;
           border-radius: 4px;
           font-size: 14px;
+          box-sizing: border-box;
         }
 
         .gym-tabs {
           display: flex;
+          flex-wrap: wrap;
           gap: 2px;
           margin-bottom: 16px;
-          padding: 0 2px;
+          width: 100%;
+          box-sizing: border-box;
+          justify-content: center;
+          align-items: center;
         }
 
         .gym-tab {
-          flex: 1;
-          padding: 8px 12px;
+          flex: 0 0 auto;
+          padding: 8px 10px;
           border: 1px solid #ced4da;
           background: white;
           cursor: pointer;
-          font-size: 12px;
+          font-size: 11px;
           border-radius: 4px;
           transition: all 0.2s ease;
           position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
-          min-height: 38px;
+          min-height: 36px;
           box-sizing: border-box;
+          width: 60px;
         }
 
         .gym-tab.active {
@@ -425,6 +449,9 @@ const Sidebar = ({
           gap: 8px;
           padding-left: 0;
           min-height: 24px;
+          margin-left: -30px;
+          position: relative;
+          left: -12px;
         }
 
         .gym-item-brand {
@@ -470,11 +497,13 @@ const Sidebar = ({
         }
 
         .gym-item-status {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 550;
-          padding: 1px 1px;
-          border-radius: 8px;
+          padding: 2px 4px;
+          border-radius: 4px;
           white-space: nowrap;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         .status-note {
@@ -732,14 +761,18 @@ const Sidebar = ({
 
         .gym-items-list {
           margin-bottom: 12px;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         .gym-item-row {
           display: flex;
           align-items: flex-start;
-          gap: 12px;
-          padding: 6px 4px;
+          gap: 8px;
+          padding: 6px 0;
           min-height: 60px;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         .gym-item-info {
@@ -751,6 +784,8 @@ const Sidebar = ({
           justify-content: space-between;
           gap: 4px;
           padding-left: 0;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         .gym-item-name {
@@ -762,6 +797,9 @@ const Sidebar = ({
           line-height: 1.2;
           width: 100%;
           padding-left: 0;
+          margin-left: -35px;
+          position: relative;
+          left: -15px;
         }
 
         .gym-item-controls {
@@ -769,8 +807,9 @@ const Sidebar = ({
           display: flex;
           flex-direction: column;
           align-items: flex-end;
-          gap: 8px;
+          gap: 6px;
           justify-content: flex-start;
+          min-width: 80px;
         }
 
         .gym-item-center {
@@ -837,14 +876,18 @@ const Sidebar = ({
         }
 
         .gym-items-section {
-          padding: 0 2px;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         .gym-items-header {
           display: flex;
-          justify-content: space-between;
+          justify-content: flex-start;
           align-items: center;
-          margin-bottom: 12px;
+          margin-bottom: 16px;
+          width: 100%;
+          box-sizing: border-box;
+          gap: 12px;
         }
 
         .gym-items-header h3 {
@@ -852,17 +895,21 @@ const Sidebar = ({
           color: #333;
           margin: 0;
           font-weight: 500;
+          flex: 1;
+          min-width: 0;
+          text-align: left;
         }
 
         .status-filter-select {
-          font-size: 12px;
-          padding: 4px 8px;
+          font-size: 10px;
+          padding: 2px 4px;
           border: 1px solid #ced4da;
           border-radius: 4px;
           background: white;
           color: #333;
           cursor: pointer;
-          min-width: 120px;
+          min-width: 60px;
+          max-width: 80px;
         }
 
         .status-filter-select:focus {

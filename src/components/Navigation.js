@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 
 const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible, searchTerm, onSearchChange, activeGym, onGymChange, gyms, onTabChange, onSidebarExpand }) => {
   const [isGymDropdownOpen, setIsGymDropdownOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleReset = (e) => {
     e.preventDefault();
@@ -16,45 +17,66 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
   const handleGymSelect = (gym) => {
     onGymChange(gym);
     setIsGymDropdownOpen(false);
-    // Removed auto-switch to gyms tab and sidebar expand
+    setIsMenuOpen(false); // Also close the main menu when gym is selected
   };
 
   const toggleGymDropdown = () => {
     setIsGymDropdownOpen(!isGymDropdownOpen);
   };
 
-  // Close dropdown if clicking outside
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  // Remove the double click handler since we want toggle behavior instead
+
+  // Close dropdowns if clicking outside
   React.useEffect(() => {
-    if (!isGymDropdownOpen) return;
     const handleClick = (e) => {
       if (!e.target.closest('.gym-selector-dropdown') && !e.target.closest('.gym-selector-icon-button')) {
         setIsGymDropdownOpen(false);
       }
+      if (!e.target.closest('.menu-dropdown') && !e.target.closest('.nav-menu-dots')) {
+        setIsMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [isGymDropdownOpen]);
+  }, [isGymDropdownOpen, isMenuOpen]);
 
   return (
     <nav className="main-nav" style={{ position: 'relative' }}>
       {/* Left side - Menu button */}
       <button 
-        className="menu-button nav-chevron-left"
-        onClick={onSidebarToggle}
+        className="menu-button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('Sidebar toggle clicked');
+          onSidebarToggle();
+        }}
         style={{ 
           position: 'absolute',
-          left: 0,
+          left: 8,
           top: '50%',
           transform: 'translateY(-50%)',
-          marginLeft: 0, 
-          paddingLeft: 8,
           background: 'none',
           border: 'none',
           color: 'white',
           cursor: 'pointer',
-          fontSize: '1.4em',
+          fontSize: '1.6em',
+          fontWeight: 'normal',
           transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-          letterSpacing: '0.02em'
+          letterSpacing: '0.02em',
+          padding: 8,
+          borderRadius: '50%',
+          minWidth: '44px',
+          minHeight: '44px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1003,
+          lineHeight: '1'
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'translateY(-50%) scale(1.05)';
@@ -68,102 +90,256 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
         <span className="menu-icon">☰</span>
       </button>
 
-      {/* Gym Selector - positioned after menu button */}
-      <div style={{ 
-        position: 'absolute', 
-        left: 48, 
-        top: '50%', 
-        transform: 'translateY(-50%)',
-        zIndex: 1000
-      }}>
-        <button
-          className="gym-selector-icon-button"
-          onClick={toggleGymDropdown}
-          aria-label="Select default gym"
+      {/* Centered Title */}
+      <div className="nav-container" style={{ padding: '0 60px', justifyContent: 'center' }}>
+        <div className="nav-center" style={{ flex: 1, textAlign: 'center' }}>
+          <button className="nav-title" onClick={handleReset}>
+            <h1>EXOs Equipment List</h1>
+          </button>
+        </div>
+      </div>
+      
+      {/* Right side - Search Icon */}
+      <button 
+        className="search-icon-button"
+        onClick={onSearchToggle}
+        aria-label="Toggle search"
+        style={{
+          position: 'absolute',
+          right: 50,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          background: 'none',
+          border: 'none',
+          color: 'white',
+          cursor: 'pointer',
+          padding: 8,
+          borderRadius: '50%',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1002,
+          letterSpacing: '0.02em',
+          minWidth: '44px',
+          minHeight: '44px',
+          lineHeight: '1'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateY(-50%) scale(1.05)';
+          e.currentTarget.style.letterSpacing = '0.08em';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+          e.currentTarget.style.letterSpacing = '0.02em';
+        }}
+      >
+        <svg 
+          width="22" 
+          height="22" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="white" 
+          strokeWidth="2.5" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          className={isSearchVisible ? 'search-icon-active' : ''}
           style={{
-            background: 'none',
-            border: 'none',
-            color: 'white',
-            cursor: 'pointer',
-            borderRadius: '50%',
-            width: 36,
-            height: 36,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            letterSpacing: '0.02em',
-            zIndex: 1002
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.05)';
-            e.currentTarget.style.letterSpacing = '0.08em';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.letterSpacing = '0.02em';
+            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
-          {activeGym ? (
-            <>
-              <span style={{
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.35-4.35"></path>
+        </svg>
+      </button>
+
+      {/* Right side - Three dots menu */}
+      <button 
+        className="nav-menu-dots"
+        onClick={toggleMenu}
+        style={{
+          position: 'absolute',
+          right: 8,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          background: 'none',
+          border: 'none',
+          color: 'white',
+          cursor: 'pointer',
+          padding: 8,
+          borderRadius: '50%',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          letterSpacing: '0.02em',
+          fontSize: '1.6em',
+          fontWeight: 'normal',
+          textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+          minWidth: '44px',
+          minHeight: '44px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1002,
+          lineHeight: '1'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateY(-50%) scale(1.05)';
+          e.currentTarget.style.letterSpacing = '0.08em';
+          e.currentTarget.style.textShadow = '0 2px 4px rgba(0, 0, 0, 0.4), 0 0 8px rgba(255, 255, 255, 0.3)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+          e.currentTarget.style.letterSpacing = '0.02em';
+          e.currentTarget.style.textShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
+        }}
+      >
+        ⋮
+      </button>
+
+      {/* Three dots menu dropdown */}
+      {isMenuOpen && (
+        <div 
+          className="menu-dropdown"
+          style={{
+            position: 'fixed',
+            top: '70px',
+            right: '12px',
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            border: '1px solid #e0e0e0',
+            zIndex: 1000,
+            minWidth: '150px',
+            maxWidth: '200px',
+            overflow: 'hidden',
+            padding: 0
+          }}
+        >
+          {/* Gym Selector in menu */}
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid #e0e0e0' }}>
+            <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Default Gym</div>
+            <button
+              className="gym-selector-icon-button"
+              onClick={toggleGymDropdown}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                background: 'transparent',
+                border: '1px solid #e0e0e0',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                color: '#333',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                width: 22,
-                height: 22,
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.18)',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: 13,
-                marginRight: 2
-              }}>{activeGym}</span>
+                justifyContent: 'space-between',
+                transition: 'all 0.2s ease',
+                minHeight: '44px'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = '#f8f8f8';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = 'transparent';
+              }}
+            >
+              <span>{activeGym || 'Select Gym'}</span>
               <svg 
-                width="14" 
-                height="14" 
+                width="12" 
+                height="12" 
                 viewBox="0 0 24 24" 
                 fill="none" 
-                stroke="white" 
-                strokeWidth="3" 
+                stroke="#666" 
+                strokeWidth="2" 
                 strokeLinecap="round" 
                 strokeLinejoin="round"
-                style={{ marginLeft: 0 }}
               >
                 <polyline points="6,9 12,15 18,9"></polyline>
               </svg>
-            </>
-          ) : (
-            <svg 
-              width="20" 
-              height="20" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="white" 
-              strokeWidth="3" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            >
-              <polyline points="6,9 12,15 18,9"></polyline>
-            </svg>
-          )}
-        </button>
-      </div>
+            </button>
+          </div>
+          
+          {/* Other menu options */}
+          <button
+            onClick={() => {
+              onTabChange('gyms');
+              onSidebarExpand(true);
+              setIsMenuOpen(false);
+            }}
+            style={{
+              width: '100%',
+              padding: '12px 12px',
+              background: 'transparent',
+              border: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: '#333',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              minHeight: '44px'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#f8f8f8';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = 'transparent';
+            }}
+          >
+            <span role="img" aria-label="gym">🏋️</span>
+            <span>Gym Items</span>
+          </button>
+          
+          <button
+            onClick={() => {
+              onTabChange('filters');
+              onSidebarExpand(true);
+              setIsMenuOpen(false);
+            }}
+            style={{
+              width: '100%',
+              padding: '12px 12px',
+              background: 'transparent',
+              border: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: '#333',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              minHeight: '44px'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#f8f8f8';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = 'transparent';
+            }}
+          >
+            <span role="img" aria-label="filter">🔍</span>
+            <span>Filters</span>
+          </button>
+        </div>
+      )}
 
-      {/* Dropdown Menu - positioned outside the button container */}
+      {/* Gym Selector Dropdown - positioned relative to menu */}
       {isGymDropdownOpen && (
         <div 
           className="gym-selector-dropdown"
           style={{
             position: 'fixed',
-            top: '70px',
-            left: '48px',
+            top: '120px',
+            right: '12px',
             backgroundColor: 'white',
             borderRadius: '8px',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
             border: '1px solid #e0e0e0',
-            zIndex: 9999,
+            zIndex: 1001,
             minWidth: '90px',
+            maxWidth: '120px',
             overflow: 'hidden',
             padding: 0
           }}
@@ -174,7 +350,7 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
               onClick={() => handleGymSelect(gym)}
               style={{
                 width: '100%',
-                padding: '10px 12px',
+                padding: '12px 12px',
                 background: gym === activeGym ? '#f0f0f0' : 'transparent',
                 border: 'none',
                 textAlign: 'left',
@@ -185,7 +361,8 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
                 transition: 'all 0.2s ease',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '8px',
+                minHeight: '44px'
               }}
               onMouseEnter={(e) => {
                 if (gym !== activeGym) {
@@ -224,7 +401,7 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
           className="nav-search-container"
           style={{
             position: 'absolute',
-            right: '60px',
+            right: '50px',
             top: '50%',
             transform: 'translateY(-50%)',
             zIndex: 1001
@@ -236,7 +413,7 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
             gap: '6px',
             backgroundColor: 'white',
             borderRadius: '16px',
-            padding: '4px 10px',
+            padding: '6px 12px',
             border: '1px solid #e0e0e0',
             maxWidth: '200px',
             minWidth: '160px',
@@ -267,7 +444,8 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
                 color: '#333',
                 fontSize: '13px',
                 outline: 'none',
-                minWidth: '0'
+                minWidth: '0',
+                padding: '4px 0'
               }}
               autoFocus
             />
@@ -278,13 +456,15 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
                 border: 'none',
                 color: '#666',
                 cursor: 'pointer',
-                padding: '2px',
+                padding: '4px',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '12px',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
+                minWidth: '24px',
+                minHeight: '24px'
               }}
               onMouseEnter={(e) => {
                 e.target.style.backgroundColor = '#f0f0f0';
@@ -301,66 +481,6 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
           </div>
         </div>
       )}
-      
-      {/* Centered Title */}
-      <div className="nav-container" style={{ padding: 0, justifyContent: 'center' }}>
-        <div className="nav-center" style={{ flex: 1, textAlign: 'center' }}>
-          <button className="nav-title" onClick={handleReset}>
-            <h1>EXOs Equipment List</h1>
-          </button>
-        </div>
-      </div>
-      
-      {/* Search Icon - positioned in top right */}
-      <button 
-        className="search-icon-button"
-        onClick={onSearchToggle}
-        aria-label="Toggle search"
-        style={{
-          position: 'absolute',
-          right: 8,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          background: 'none',
-          border: 'none',
-          color: 'white',
-          cursor: 'pointer',
-          padding: 8,
-          borderRadius: '50%',
-          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1002,
-          letterSpacing: '0.02em'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-50%) scale(1.05)';
-          e.currentTarget.style.letterSpacing = '0.08em';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
-          e.currentTarget.style.letterSpacing = '0.02em';
-        }}
-      >
-        <svg 
-          width="20" 
-          height="20" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="white" 
-          strokeWidth="3" 
-          strokeLinecap="round" 
-          strokeLinejoin="round"
-          className={isSearchVisible ? 'search-icon-active' : ''}
-          style={{
-            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
-          }}
-        >
-          <circle cx="11" cy="11" r="8"></circle>
-          <path d="m21 21-4.35-4.35"></path>
-        </svg>
-      </button>
     </nav>
   );
 };

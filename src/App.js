@@ -84,7 +84,8 @@ function App() {
   // Sidebar tab state
   const [activeTab, setActiveTab] = useState('filters');
 
-  const gyms = ['MP2', 'MAT3', 'MP5'];
+  // Gym configuration - easy to add/remove gyms
+  const gyms = ['MP2', 'MAT3', 'MP5', 'HMBLT', 'CRSM', 'TM3']; // Add new gyms here
 
   // Infinite scroll states
   const [visibleProducts, setVisibleProducts] = useState([]);
@@ -95,7 +96,7 @@ function App() {
   const observerRef = useRef();
   const loadingRef = useRef();
 
-  const [initialPreferredOnly, setInitialPreferredOnly] = useState(false);
+  // Removed initialPreferredOnly state since we're always showing preferred items by default
   const [notification, setNotification] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
@@ -473,8 +474,7 @@ function App() {
       searchTerm,
       selectedCategory,
       selectedBrand,
-      showAllItems,
-      initialPreferredOnly
+      showAllItems
     });
     
     // Safety check - if no products, return empty array
@@ -484,8 +484,9 @@ function App() {
     }
     
     let base = products;
-    // On initial load, only show preferred products unless filters/search are used
-    if (initialPreferredOnly && !searchTerm && !selectedCategory && !selectedBrand && !showAllItems) {
+    
+    // Default to showing preferred items on initial load
+    if (!searchTerm && !selectedCategory && !selectedBrand && !showAllItems) {
       base = products.filter(product => {
         const preferredValue = (product.Preferred || "").toUpperCase().trim();
         const isPreferred = preferredValue === 'P' || preferredValue === 'P/C' || preferredValue === 'YES' || preferredValue === 'TRUE';
@@ -532,7 +533,7 @@ function App() {
     console.log('Final filtered products:', filtered.length, 'products');
     console.log('=== END FILTERING DEBUG ===');
     return filtered;
-  }, [products, searchTerm, selectedCategory, selectedBrand, showAllItems, initialPreferredOnly]);
+  }, [products, searchTerm, selectedCategory, selectedBrand, showAllItems]);
 
   // Reset visible products when filters change
   useEffect(() => {
@@ -589,25 +590,25 @@ function App() {
   const scrollToTop = () => {
     console.log("scrollToTop function called"); // Debug log
     
-    // Try multiple scroll targets for better mobile compatibility
-    const contentArea = document.querySelector(".content-area");
-    const mainContent = document.querySelector("main");
+    // Try all possible scroll containers
+    const scrollTargets = [
+      document.querySelector(".content-area"),
+      document.querySelector(".products-container"),
+      document.querySelector("main"),
+      document.documentElement,
+      document.body
+    ];
     
-    // Try content-area first (if it exists)
-    if (contentArea && contentArea.scrollTop > 0) {
-      console.log("Scrolling content-area to top");
-      contentArea.scrollTo({ top: 0, behavior: "smooth" });
-      return;
+    // Find the first target that has scroll content
+    for (const target of scrollTargets) {
+      if (target && (target.scrollTop > 0 || target.scrollY > 0)) {
+        console.log("Scrolling target:", target.className || target.tagName);
+        target.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
     }
     
-    // Try main content area
-    if (mainContent && mainContent.scrollTop > 0) {
-      console.log("Scrolling main content to top");
-      mainContent.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    
-    // Fallback to window scroll (works on most mobile browsers)
+    // Fallback to window scroll
     console.log("Using window scroll to top");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -615,54 +616,73 @@ function App() {
   // Show/hide back to top button
   useEffect(() => {
     const handleScroll = () => {
-      // Check multiple scroll containers for mobile compatibility
-      const contentArea = document.querySelector(".content-area");
-      const mainContent = document.querySelector("main");
-      const body = document.body;
-      const html = document.documentElement;
+      // Check all possible scroll containers
+      const scrollTargets = [
+        document.querySelector(".content-area"),
+        document.querySelector(".products-container"),
+        document.querySelector("main"),
+        document.documentElement,
+        document.body
+      ];
       
       let scrollTop = 0;
       
-      // Try content-area first (most likely on mobile)
-      if (contentArea && contentArea.scrollTop > 0) {
-        scrollTop = contentArea.scrollTop;
-      } else if (mainContent && mainContent.scrollTop > 0) {
-        scrollTop = mainContent.scrollTop;
-      } else {
-        // Fallback to window scroll
-        scrollTop = window.pageYOffset || body.scrollTop || html.scrollTop || 0;
+      // Find the first target with scroll content
+      for (const target of scrollTargets) {
+        if (target && (target.scrollTop > 0 || target.scrollY > 0)) {
+          scrollTop = target.scrollTop || target.scrollY || 0;
+          break;
+        }
       }
       
+      // Fallback to window scroll
+      if (scrollTop === 0) {
+        scrollTop = window.pageYOffset || window.scrollY || 0;
+      }
+      
+      console.log('Scroll position detected:', scrollTop);
       setShowBackToTop(scrollTop > 300);
     };
     
-    // Listen to scroll events on multiple elements
-    const contentArea = document.querySelector(".content-area");
-    const mainContent = document.querySelector("main");
+    // Setup listeners after DOM is ready
+    const setupScrollListeners = () => {
+      const targets = [
+        window,
+        document.querySelector(".content-area"),
+        document.querySelector(".products-container"),
+        document.querySelector("main")
+      ].filter(Boolean);
+      
+      targets.forEach(target => {
+        target.addEventListener('scroll', handleScroll);
+      });
+      
+      // Initial check
+      handleScroll();
+    };
     
-    window.addEventListener('scroll', handleScroll);
-    if (contentArea) {
-      contentArea.addEventListener('scroll', handleScroll);
-    }
-    if (mainContent) {
-      mainContent.addEventListener('scroll', handleScroll);
-    }
+    // Setup listeners after a short delay
+    const timeoutId = setTimeout(setupScrollListeners, 100);
     
     return () => {
-      window.removeEventListener('scroll', handleScroll);
-      if (contentArea) {
-        contentArea.removeEventListener('scroll', handleScroll);
-      }
-      if (mainContent) {
-        mainContent.removeEventListener('scroll', handleScroll);
-      }
+      clearTimeout(timeoutId);
+      const targets = [
+        window,
+        document.querySelector(".content-area"),
+        document.querySelector(".products-container"),
+        document.querySelector("main")
+      ].filter(Boolean);
+      
+      targets.forEach(target => {
+        target.removeEventListener('scroll', handleScroll);
+      });
     };
   }, []);
 
   // When user interacts with filters/search, show all products
   useEffect(() => {
     if (searchTerm || selectedCategory || selectedBrand || showAllItems) {
-      setInitialPreferredOnly(false);
+      // Keep the current behavior - user interaction shows all products
     }
   }, [searchTerm, selectedCategory, selectedBrand, showAllItems]);
 
@@ -796,6 +816,12 @@ function App() {
         !e.target.closest('.search-icon-button')) {
       setIsSearchVisible(false);
     }
+  };
+
+  const handleSidebarToggle = () => {
+    console.log('Sidebar toggle called, current state:', isSidebarExpanded);
+    setIsSidebarExpanded(!isSidebarExpanded);
+    console.log('Sidebar state will be:', !isSidebarExpanded);
   };
 
   const handleSearchToggle = () => {
@@ -1275,6 +1301,7 @@ function App() {
                     statusNotes={statusNotes}
                     onNoteSubmit={handleNoteSubmit}
                     activeGym={activeGym}
+                    gyms={gyms}
                   />
                 ))}
               </Suspense>
@@ -1374,20 +1401,21 @@ function App() {
         <div className={`content-area ${isSidebarExpanded ? 'sidebar-expanded' : ''}`}>
           <div className="products-container">
             <Suspense fallback={<LoadingState type="products" />}>
-              {visibleProducts.map((product, index) => (
-                <ProductCard
-                  key={`${product["Exos Part Number"]}-${index}`}
-                  product={product}
-                  onCopyInfo={copyProductInfo}
-                  copySuccess={copySuccess}
-                  onAddToGym={handleAddToGym}
-                  itemStatuses={itemStatuses}
-                  onStatusChange={handleStatusChange}
-                  statusNotes={statusNotes}
-                  onNoteSubmit={handleNoteSubmit}
-                  activeGym={activeGym}
-                />
-              ))}
+                              {visibleProducts.map((product, index) => (
+                  <ProductCard
+                    key={`${product["Exos Part Number"]}-${index}`}
+                    product={product}
+                    onCopyInfo={copyProductInfo}
+                    copySuccess={copySuccess}
+                    onAddToGym={handleAddToGym}
+                    itemStatuses={itemStatuses}
+                    onStatusChange={handleStatusChange}
+                    statusNotes={statusNotes}
+                    onNoteSubmit={handleNoteSubmit}
+                    activeGym={activeGym}
+                    gyms={gyms}
+                  />
+                ))}
             </Suspense>
             
             {/* Infinite scroll loading indicator */}
