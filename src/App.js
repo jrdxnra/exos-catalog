@@ -818,11 +818,7 @@ function App() {
     }
   };
 
-  const handleSidebarToggle = () => {
-    console.log('Sidebar toggle called, current state:', isSidebarExpanded);
-    setIsSidebarExpanded(!isSidebarExpanded);
-    console.log('Sidebar state will be:', !isSidebarExpanded);
-  };
+  // Remove unused function - sidebar toggle is already working correctly
 
   const handleSearchToggle = () => {
     setIsSearchVisible(!isSearchVisible);
