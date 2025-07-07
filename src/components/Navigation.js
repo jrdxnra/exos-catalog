@@ -71,7 +71,7 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
       {/* Gym Selector - positioned after menu button */}
       <div style={{ 
         position: 'absolute', 
-        left: 64, 
+        left: 48, 
         top: '50%', 
         transform: 'translateY(-50%)',
         zIndex: 1000
@@ -157,7 +157,7 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
           style={{
             position: 'fixed',
             top: '70px',
-            left: '64px',
+            left: '48px',
             backgroundColor: 'white',
             borderRadius: '8px',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
@@ -303,8 +303,8 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
       )}
       
       {/* Centered Title */}
-      <div className="nav-container" style={{ padding: 0 }}>
-        <div className="nav-center">
+      <div className="nav-container" style={{ padding: 0, justifyContent: 'center' }}>
+        <div className="nav-center" style={{ flex: 1, textAlign: 'center' }}>
           <button className="nav-title" onClick={handleReset}>
             <h1>EXOs Equipment List</h1>
           </button>

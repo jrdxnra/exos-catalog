@@ -615,12 +615,48 @@ function App() {
   // Show/hide back to top button
   useEffect(() => {
     const handleScroll = () => {
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      // Check multiple scroll containers for mobile compatibility
+      const contentArea = document.querySelector(".content-area");
+      const mainContent = document.querySelector("main");
+      const body = document.body;
+      const html = document.documentElement;
+      
+      let scrollTop = 0;
+      
+      // Try content-area first (most likely on mobile)
+      if (contentArea && contentArea.scrollTop > 0) {
+        scrollTop = contentArea.scrollTop;
+      } else if (mainContent && mainContent.scrollTop > 0) {
+        scrollTop = mainContent.scrollTop;
+      } else {
+        // Fallback to window scroll
+        scrollTop = window.pageYOffset || body.scrollTop || html.scrollTop || 0;
+      }
+      
       setShowBackToTop(scrollTop > 300);
     };
     
+    // Listen to scroll events on multiple elements
+    const contentArea = document.querySelector(".content-area");
+    const mainContent = document.querySelector("main");
+    
     window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    if (contentArea) {
+      contentArea.addEventListener('scroll', handleScroll);
+    }
+    if (mainContent) {
+      mainContent.addEventListener('scroll', handleScroll);
+    }
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (contentArea) {
+        contentArea.removeEventListener('scroll', handleScroll);
+      }
+      if (mainContent) {
+        mainContent.removeEventListener('scroll', handleScroll);
+      }
+    };
   }, []);
 
   // When user interacts with filters/search, show all products
