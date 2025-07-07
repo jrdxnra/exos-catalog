@@ -587,29 +587,36 @@ function App() {
 
   // Scroll to top functionality
   const scrollToTop = () => {
-    console.log('scrollToTop function called'); // Debug log
-    console.log('Current scroll position:', window.scrollY); // Debug current position
+    console.log("scrollToTop function called"); // Debug log
     
-    // Find the content-area element and scroll it
-    const contentArea = document.querySelector('.content-area');
-    if (contentArea) {
-      console.log('Found content-area, scrolling it to top');
-      contentArea.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      console.log('Content-area not found, trying window scroll');
-      // Fallback to window scroll
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
+    // Try multiple scroll targets for better mobile compatibility
+    const contentArea = document.querySelector(".content-area");
+    const mainContent = document.querySelector("main");
+    
+    // Try content-area first (if it exists)
+    if (contentArea && contentArea.scrollTop > 0) {
+      console.log("Scrolling content-area to top");
+      contentArea.scrollTo({ top: 0, behavior: "smooth" });
+      return;
     }
     
-    console.log('Scroll attempted, new position:', window.scrollY); // Debug new position
+    // Try main content area
+    if (mainContent && mainContent.scrollTop > 0) {
+      console.log("Scrolling main content to top");
+      mainContent.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    
+    // Fallback to window scroll (works on most mobile browsers)
+    console.log("Using window scroll to top");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Show/hide back to top button
   useEffect(() => {
     const handleScroll = () => {
-      setShowBackToTop(window.scrollY > 300);
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      setShowBackToTop(scrollTop > 300);
     };
     
     window.addEventListener('scroll', handleScroll);
