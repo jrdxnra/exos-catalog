@@ -306,7 +306,7 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
       <div className="nav-container" style={{ padding: 0 }}>
         <div className="nav-center">
           <button className="nav-title" onClick={handleReset}>
-            <h1>Equipment List</h1>
+            <h1>EXOs Equipment List</h1>
           </button>
         </div>
       </div>

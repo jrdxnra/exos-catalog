@@ -2,7 +2,7 @@
   "name": "product-catalog",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://jrdxnra.github.io/my-react-app",
+  "homepage": "https://jrdxnra.github.io/exos-equipment-list",
   "dependencies": {
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^5.17.0",
