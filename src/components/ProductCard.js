@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 
 const STATUS_OPTIONS = [
@@ -9,14 +9,19 @@ const STATUS_OPTIONS = [
   { value: 'Not Approved', label: 'Not Approved', color: '#dc3545', bgColor: '#f8d7da', description: 'Requires Note' },
 ];
 
-function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuses, onStatusChange, statusNotes, onNoteSubmit, activeGym, gyms }) {
+function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuses, onStatusChange, statusNotes, onNoteSubmit, activeGym, gyms, isEditMode, onProductUpdate, onEditModeToggle, isSyncInProgress }) {
   const [quantity, setQuantity] = useState('1');
   const [selectedGym, setSelectedGym] = useState('');
   const [customQty, setCustomQty] = useState('');
-  const [previewUrl, setPreviewUrl] = useState("https://via.placeholder.com/300x200?text=Loading...");
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(true);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [manualGym, setManualGym] = useState(false);
+  
+  // Edit mode state
+  const [editingProduct, setEditingProduct] = useState({ ...product });
+  const [isSaving, setIsSaving] = useState(false);
 
   // If activeGym changes and user hasn't manually selected a gym, update selectedGym
   useEffect(() => {
@@ -31,6 +36,8 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuse
   };
 
   const handleAddToGym = () => {
+    if (isSyncInProgress) return; // Disable during sync
+    
     const qty = quantity === 'custom' ? parseInt(customQty, 10) : parseInt(quantity, 10);
     if (selectedGym && qty > 0) {
       onAddToGym(product, selectedGym, qty, currentStatus);
@@ -61,88 +68,349 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuse
     setShowNoteModal(false);
   };
 
+  // Edit mode functions
+  const handleFieldEdit = (field, value) => {
+    setEditingProduct(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async () => {
+    if (!onProductUpdate) return;
+    
+    setIsSaving(true);
+    try {
+              await onProductUpdate(product.id || product["EXOS Part Number"], editingProduct);
+      setEditingProduct({ ...editingProduct }); // Reset to current state
+    } catch (error) {
+      console.error('Error saving product:', error);
+      // Re-throw the error so the parent component can handle it
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDone = () => {
+    // Reset editing state and exit edit mode
+    setEditingProduct({ ...product });
+    if (onEditModeToggle) {
+      onEditModeToggle();
+    }
+  };
+
   // Format cost to ensure single $ symbol
   const formatCost = (cost) => {
     if (!cost) return '';
-    // Remove any existing $ symbols and add a single one
-    return `$${cost.replace(/[$]/g, '')}`;
+    try {
+      // Convert to string and remove any existing $ symbols, then add a single one
+      return `$${String(cost || '').replace(/[$]/g, '')}`;
+    } catch (error) {
+      console.error('Error formatting cost:', error);
+      return '';
+    }
   };
 
   const currentStatus = itemStatuses?.[product["Item Name"]] || '';
   const currentNote = statusNotes?.[product["Item Name"]] || '';
 
-  useEffect(() => {
-    let isMounted = true;
-    if (product.URL) {
-      fetch(`https://api.microlink.io/?url=${encodeURIComponent(product.URL)}&screenshot=true&meta=false`)
-        .then(res => res.json())
-        .then(data => {
-          if (isMounted && data.status === 'success' && data.data.screenshot && data.data.screenshot.url) {
-            setPreviewUrl(data.data.screenshot.url);
-          } else {
-            setPreviewUrl("https://via.placeholder.com/300x200?text=No+Preview");
-          }
-        })
-        .catch(() => setPreviewUrl("https://via.placeholder.com/300x200?text=No+Preview"))
-        .finally(() => {
-          // Loading state is handled implicitly by the useEffect
-        });
-    } else {
-      setPreviewUrl("https://via.placeholder.com/300x200?text=No+Preview");
+  // Function to fetch microlink preview with rate limiting and caching
+  const fetchMicrolinkPreview = useCallback(async (url) => {
+    if (!url) {
+      setPreviewUrl(null);
+      setIsLoadingPreview(false);
+      return;
     }
-    return () => { isMounted = false; };
-  }, [product.URL]);
+
+    // Skip microlink for known problematic URLs
+    const problematicUrls = ['x.com', 'twitter.com', 'amazon.com', 'amzn.to', 'bit.ly', 'tinyurl.com'];
+    const urlLower = url.toLowerCase();
+    const isProblematicUrl = problematicUrls.some(domain => urlLower.includes(domain));
+    
+    if (isProblematicUrl) {
+      console.log('Skipping microlink for problematic URL:', url);
+      setPreviewUrl(null);
+      setIsLoadingPreview(false);
+      return;
+    }
+    
+    // Check cache first
+    const cacheKey = `microlink_cache_${btoa(url)}`;
+    const cachedData = sessionStorage.getItem(cacheKey);
+    if (cachedData) {
+      try {
+        const parsed = JSON.parse(cachedData);
+        const cacheAge = Date.now() - parsed.timestamp;
+        // Cache for 1 hour
+        if (cacheAge < 3600000) {
+          console.log('Using cached microlink preview for:', url);
+          setPreviewUrl(parsed.previewUrl);
+          setIsLoadingPreview(false);
+          return;
+        }
+      } catch (e) {
+        // Invalid cache data, continue with fetch
+      }
+    }
+    
+    // Check if we've been rate limited recently
+    const rateLimitKey = 'microlink_rate_limited';
+    const rateLimitTime = sessionStorage.getItem(rateLimitKey);
+    const now = Date.now();
+    
+    if (rateLimitTime && (now - parseInt(rateLimitTime)) < 60000) { // 1 minute cooldown
+      console.log('Skipping microlink due to recent rate limit');
+      setPreviewUrl(null);
+      setIsLoadingPreview(false);
+      return;
+    }
+    
+    // Check if there's already a request in progress globally
+    const globalRequestKey = 'microlink_request_in_progress';
+    if (sessionStorage.getItem(globalRequestKey)) {
+      console.log('Skipping microlink - another request in progress');
+      setPreviewUrl(null);
+      setIsLoadingPreview(false);
+      return;
+    }
+    
+    try {
+      console.log('Fetching microlink preview for:', url);
+      // Set global request flag
+      sessionStorage.setItem(globalRequestKey, 'true');
+      
+      const response = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}&screenshot=true&meta=false`);
+      
+      if (response.status === 429) {
+        console.log('Rate limited by microlink API, setting cooldown');
+        sessionStorage.setItem(rateLimitKey, now.toString());
+        throw new Error('Rate limited');
+      }
+      if (response.status === 400) {
+        throw new Error('Bad request');
+      }
+      
+      const data = await response.json();
+      console.log('Microlink response:', data);
+      
+      if (data.status === 'success' && data.data.screenshot && data.data.screenshot.url) {
+        console.log('Setting preview URL:', data.data.screenshot.url);
+        setPreviewUrl(data.data.screenshot.url);
+        
+        // Cache the successful result
+        const cacheData = {
+          previewUrl: data.data.screenshot.url,
+          timestamp: Date.now()
+        };
+        sessionStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      } else {
+        throw new Error('API error');
+      }
+    } catch (error) {
+      console.log('Microlink failed for URL:', url, 'Error:', error.message);
+      setPreviewUrl(null);
+    } finally {
+      // Clear global request flag
+      sessionStorage.removeItem(globalRequestKey);
+      setIsLoadingPreview(false);
+    }
+  }, []);
+
+  // Single effect to handle microlink previews for both normal and edit modes
+  useEffect(() => {
+    const url = isEditMode ? editingProduct.URL : product.URL;
+    
+    if (url) {
+      if (isEditMode) {
+        // Edit mode - fetch immediately
+        console.log('Edit mode - fetching preview for:', url);
+        setIsLoadingPreview(true);
+        fetchMicrolinkPreview(url);
+      } else {
+        // Normal mode - add delay to avoid overwhelming the API
+        const timer = setTimeout(() => {
+          console.log('Normal mode - fetching preview for:', url);
+          setIsLoadingPreview(true);
+          fetchMicrolinkPreview(url);
+        }, Math.random() * 2000); // Random delay 0-2 seconds (back to original)
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isEditMode ? editingProduct.URL : product.URL, isEditMode, fetchMicrolinkPreview]);
 
   return (
-    <div className={`product-card${product.URL ? ' has-url' : ''}`}>
-      {product.URL ? (
-        <a
-          href={product.URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ display: 'block' }}
+    <div className={`product-card${product.URL ? ' has-url' : ''}${isEditMode ? ' edit-mode' : ''}${product.id ? ' firebase-item' : ''}`}>
+      {/* Preview Image - clickable to edit URL in edit mode */}
+      {isEditMode ? (
+        <div 
+          className="product-preview-image-container"
+          onClick={() => {
+            const newUrl = prompt('Enter new URL:', editingProduct.URL || '');
+            if (newUrl !== null) {
+              handleFieldEdit('URL', newUrl);
+            }
+          }}
+          style={{ cursor: 'pointer' }}
         >
-          <img
-            src={previewUrl}
-            alt={product["Item Name"]}
-            className="product-preview-image"
-          />
-        </a>
+          {isLoadingPreview ? (
+            <div className="product-preview-placeholder">
+              <div className="loading-spinner small"></div>
+              <p>Loading preview...</p>
+            </div>
+          ) : previewUrl ? (
+            <img
+              src={previewUrl}
+              alt={editingProduct["Item Name"]}
+              className="product-preview-image"
+            />
+          ) : (
+            <div className="product-preview-placeholder">
+              <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔗</div>
+              <p style={{ fontSize: '14px', color: '#666', margin: '0' }}>
+                {editingProduct.URL ? 'Preview unavailable' : 'No URL'}
+              </p>
+            </div>
+          )}
+          <div className="edit-overlay">
+            <span>Click to edit URL</span>
+          </div>
+        </div>
       ) : (
-        <img
-          src={previewUrl}
-          alt={product["Item Name"]}
-          className="product-preview-image"
-        />
+        <>
+          {product.URL ? (
+            <a
+              href={product.URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'block' }}
+            >
+              {isLoadingPreview ? (
+                <div className="product-preview-placeholder">
+                  <div className="loading-spinner small"></div>
+                  <p>Loading preview...</p>
+                </div>
+              ) : previewUrl ? (
+                <img
+                  src={previewUrl}
+                  alt={product["Item Name"]}
+                  className="product-preview-image"
+                />
+              ) : (
+                <div className="product-preview-placeholder">
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔗</div>
+                  <p style={{ fontSize: '14px', color: '#666', margin: '0' }}>
+                    Click to visit website
+                  </p>
+                </div>
+              )}
+            </a>
+          ) : (
+            <div className="product-preview-placeholder">
+              <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔗</div>
+              <p style={{ fontSize: '14px', color: '#666', margin: '0' }}>
+                Update product link
+              </p>
+            </div>
+          )}
+        </>
       )}
       <div className="product-card-content">
         <div className="product-card-header">
           <div className="title-container">
+            {isEditMode ? (
+              <input
+                type="text"
+                value={editingProduct["Item Name"] || ''}
+                onChange={(e) => handleFieldEdit("Item Name", e.target.value)}
+                className="edit-input title-input"
+                placeholder="Item Name"
+              />
+            ) : (
             <h3 className="product-title-fixed">{product["Item Name"]}</h3>
-            {product.Preferred && (
+            )}
+            {isEditMode ? (
+              <select
+                value={editingProduct.Preferred || ''}
+                onChange={(e) => handleFieldEdit('Preferred', e.target.value)}
+                className="edit-select preferred-select"
+              >
+                <option value="">Not Preferred</option>
+                <option value="P">Preferred (P)</option>
+                <option value="C">Coach's Recommended (C)</option>
+                <option value="P+C">Both Preferred & Coach's (P+C)</option>
+              </select>
+            ) : (
+              product.Preferred && (
               <span className="preferred-badge">
-                {(product.Preferred === 'P' || product.Preferred === 'YES' || product.Preferred === 'TRUE') && <span role="img" aria-label="star">⭐</span>}
-                {(product.Preferred === 'C' || product.Preferred === 'COACH' || product.Preferred === 'RECOMMENDED') && <span role="img" aria-label="trophy">🏆</span>}
-                {product.Preferred === 'P/C' && <span role="img" aria-label="star and trophy">⭐🏆</span>}
-                {(product.Preferred === 'P' || product.Preferred === 'YES' || product.Preferred === 'TRUE') && ' Preferred Item'}
-                {(product.Preferred === 'C' || product.Preferred === 'COACH' || product.Preferred === 'RECOMMENDED') && ' Coach\'s Recommended'}
-                {product.Preferred === 'P/C' && ' Preferred & Coach\'s Recommended'}
+                  {product.Preferred === 'P' && <span role="img" aria-label="star">⭐</span>}
+                  {product.Preferred === 'C' && <span role="img" aria-label="trophy">🏆</span>}
+                  {product.Preferred === 'P+C' && <span role="img" aria-label="star and trophy">⭐🏆</span>}
+                  {product.Preferred === 'P' && ' Preferred Item'}
+                  {product.Preferred === 'C' && ' Coach\'s Recommended'}
+                  {product.Preferred === 'P+C' && ' Preferred & Coach\'s Recommended'}
               </span>
+              )
             )}
           </div>
         </div>
 
         <div className="product-details">
+          {isEditMode ? (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <input
+                  type="text"
+                  value={editingProduct.Brand || ''}
+                  onChange={(e) => handleFieldEdit('Brand', e.target.value)}
+                  className="edit-input brand-input"
+                  placeholder="Brand"
+                />
+                <input
+                  type="text"
+                  value={editingProduct.Category || ''}
+                  onChange={(e) => handleFieldEdit('Category', e.target.value)}
+                  className="edit-input category-input"
+                  placeholder="Category"
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={editingProduct["EXOS Part Number"] || editingProduct["Part Number"] || ''}
+                  onChange={(e) => handleFieldEdit('EXOS Part Number', e.target.value)}
+                  className="edit-input part-number-input"
+                  placeholder="Part Number"
+                  disabled={true}
+                  style={{ 
+                    backgroundColor: '#f5f5f5', 
+                    color: '#666', 
+                    cursor: 'not-allowed',
+                    border: '1px solid #ddd'
+                  }}
+                  title="Part Number cannot be changed - it's used as a unique identifier"
+                />
+                <input
+                  type="text"
+                  value={editingProduct.Cost ? String(editingProduct.Cost || '').replace(/[$]/g, '') : ''}
+                  onChange={(e) => handleFieldEdit('Cost', e.target.value)}
+                  className="edit-input cost-input"
+                  placeholder="Cost"
+                />
+              </div>
+            </>
+          ) : (
+            <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <p className="product-brand" style={{ margin: 0 }}>{product.Brand}</p>
             <p className="product-category" style={{ margin: 0, textAlign: 'right' }}>{product.Category}</p>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <p className="product-part-number" style={{ margin: 0 }}>
-              {product["Exos Part Number"] || product["Part Number"] || product["part_number"] || 'No Part Number'}
+                  {product["EXOS Part Number"] || product["Part Number"] || product["part_number"] || 'No Part Number'}
             </p>
             {product.Cost && <p className="product-cost" style={{ margin: 0, textAlign: 'right' }}>{formatCost(product.Cost)}</p>}
           </div>
+            </>
+          )}
         </div>
 
         {/* Show note for Not Approved items */}
@@ -153,12 +421,30 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuse
         )}
 
         <div className="product-actions">
+          {isEditMode ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="save-button"
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={handleDone}
+                className="done-button"
+              >
+                Done
+              </button>
+            </>
+          ) : (
+            <>
           <div style={{ display: 'flex', flexDirection: 'row', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
             <input
               type="number"
               min="1"
               value={quantity}
-              onChange={e => setQuantity(e.target.value.replace(/^0+/, ''))}
+              onChange={e => setQuantity(String(e.target.value || '').replace(/^0+/, ''))}
               className="quantity-input"
               style={{ width: '60px', height: '38px' }}
               placeholder="Qty"
@@ -205,6 +491,8 @@ function ProductCard({ product, onCopyInfo, copySuccess, onAddToGym, itemStatuse
           >
             {copySuccess === product["Item Name"] ? 'Copied!' : 'Copy Info'}
           </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -246,8 +534,8 @@ ProductCard.propTypes = {
     "Item Name": PropTypes.string,
     Brand: PropTypes.string,
     Category: PropTypes.string,
-    Cost: PropTypes.string,
-    "Exos Part Number": PropTypes.string,
+    Cost: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    "EXOS Part Number": PropTypes.string,
     Preferred: PropTypes.string,
     URL: PropTypes.string,
   }).isRequired,
@@ -260,6 +548,10 @@ ProductCard.propTypes = {
   onNoteSubmit: PropTypes.func,
   activeGym: PropTypes.string,
   gyms: PropTypes.arrayOf(PropTypes.string),
+  isEditMode: PropTypes.bool,
+  onProductUpdate: PropTypes.func,
+  onEditModeToggle: PropTypes.func,
+  isSyncInProgress: PropTypes.bool,
 };
 
 export default React.memo(ProductCard); 

@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
+import notificationService from '../services/notificationService';
+import CONFIG from '../config';
 
 const STATUS_OPTIONS = [
   { value: 'Hold', label: 'Hold', color: '#ffc107', bgColor: '#fff3cd', description: 'Buy Later List' },
@@ -8,6 +10,16 @@ const STATUS_OPTIONS = [
   { value: 'Approved', label: 'Approved', color: '#28a745', bgColor: '#d4edda', description: 'Ready for Procurement' },
   { value: 'Not Approved', label: 'Not Approved', color: '#dc3545', bgColor: '#f8d7da', description: 'Requires Note' },
 ];
+
+const JUSTIFICATION_OPTIONS = [
+  { value: '', label: 'Select justification...' },
+  { value: 'program_needs', label: 'Program Needs' },
+  { value: 'replacement', label: 'Replacement' },
+  { value: 'broken', label: 'Broken' },
+];
+
+// Get available users from config
+const AVAILABLE_USERS = CONFIG.TAGGING.ENABLED ? CONFIG.TAGGING.AVAILABLE_USERS : [];
 
 const Sidebar = ({ 
   categories, 
@@ -28,8 +40,8 @@ const Sidebar = ({
   handleRemoveFromGym,
   onQtyChange,
   onStatusChange,
-  statusNotes,
   onNoteSubmit,
+  onJustificationChange,
   saveGymItems,
   isSaving,
   // Tab control
@@ -41,6 +53,17 @@ const Sidebar = ({
   const [noteText, setNoteText] = useState('');
   const [currentItemForNote, setCurrentItemForNote] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'pending', 'approved', 'not-approved', 'hold', 'waitlist'
+  
+  // Tagging system state
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [tagSuggestions, setTagSuggestions] = useState([]);
+  const [currentTagInput, setCurrentTagInput] = useState('');
+  const [activeTextarea, setActiveTextarea] = useState(null);
+  const [cursorPosition, setCursorPosition] = useState(0);
+  
+  // Pending notifications state
+  const [pendingNotifications, setPendingNotifications] = useState({});
+  const [savingNotes, setSavingNotes] = useState({});
   
   // Collapsible sections state
   const [categoriesExpanded, setCategoriesExpanded] = useState(false);
@@ -109,6 +132,235 @@ const Sidebar = ({
     setCurrentItemForNote('');
   };
 
+  // Tagging system functions
+  const handleTagInput = (e, gym, index) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    
+    // Check if tagging is enabled
+    if (!CONFIG.TAGGING.ENABLED) {
+      onNoteSubmit && onNoteSubmit(gym, index, value);
+      return;
+    }
+    
+    // Check if we're typing a tag (starting with @)
+    const beforeCursor = value.substring(0, cursorPos);
+    const tagMatch = beforeCursor.match(/@(\w*)$/);
+    
+    if (tagMatch) {
+      const tagInput = tagMatch[1].toLowerCase();
+      const settings = CONFIG.TAGGING.SETTINGS;
+      
+      // Filter users based on config settings
+      const suggestions = AVAILABLE_USERS.filter(user => {
+        const nameLower = user.name.toLowerCase();
+        const idLower = user.id.toLowerCase();
+        const emailLower = user.email.toLowerCase();
+        
+        // Split name into first and last
+        const nameParts = user.name.toLowerCase().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts[nameParts.length - 1] || '';
+        
+        return (
+          nameLower.includes(tagInput) ||
+          idLower.includes(tagInput) ||
+          (settings.ALLOW_FIRST_NAME && firstName.startsWith(tagInput)) ||
+          (settings.ALLOW_LAST_NAME && lastName.startsWith(tagInput)) ||
+          (settings.ALLOW_EMAIL && emailLower.includes(tagInput))
+        );
+      }).slice(0, settings.MAX_SUGGESTIONS);
+      
+      setTagSuggestions(suggestions);
+      setCurrentTagInput(tagInput);
+      setShowTagSuggestions(true);
+      setActiveTextarea({ gym, index });
+      setCursorPosition(cursorPos);
+    } else {
+      setShowTagSuggestions(false);
+    }
+    
+    // Update the notes value
+    onNoteSubmit && onNoteSubmit(gym, index, value);
+  };
+
+  const selectTag = (user) => {
+    if (!activeTextarea) return;
+    
+    const { gym, index } = activeTextarea;
+    const currentNotes = gymItems[gym]?.[index]?.notes || '';
+    
+    // Replace the @tag with the full user mention
+    const beforeTag = currentNotes.substring(0, cursorPosition - currentTagInput.length - 1);
+    const afterTag = currentNotes.substring(cursorPosition);
+    const newNotes = `${beforeTag}@${user.name} ${afterTag}`;
+    
+    // Update the notes
+    onNoteSubmit && onNoteSubmit(gym, index, newNotes);
+    
+    // Store pending notification instead of sending immediately
+    const itemKey = `${gym}-${index}`;
+    const currentPending = pendingNotifications[itemKey] || [];
+    const newPending = [...currentPending, { user, gym, item: gymItems[gym]?.[index] }];
+    
+    setPendingNotifications(prev => ({
+      ...prev,
+      [itemKey]: newPending
+    }));
+    
+    // Show success message for tagging
+    showTagSuccessMessage(user.name);
+    
+    // Reset tagging state
+    setShowTagSuggestions(false);
+    setActiveTextarea(null);
+    setCurrentTagInput('');
+  };
+
+  const saveNote = async (gym, index) => {
+    const itemKey = `${gym}-${index}`;
+    const pending = pendingNotifications[itemKey] || [];
+    
+    if (pending.length === 0) {
+      showNotification('No pending notifications to send', 'info');
+      return;
+    }
+    
+    setSavingNotes(prev => ({ ...prev, [itemKey]: true }));
+    
+    try {
+      // Send all pending notifications
+      const item = gymItems[gym]?.[index];
+      const notes = item?.notes || '';
+      
+      for (const pendingNotification of pending) {
+        const notification = notificationService.createTagNotification(
+          pendingNotification.user,
+          'Current User', // In real app, get current user name
+          gym,
+          item,
+          notes
+        );
+        
+        if (notification) {
+          notificationService.addToQueue(notification);
+        }
+      }
+      
+      // Clear pending notifications for this item
+      setPendingNotifications(prev => {
+        const newPending = { ...prev };
+        delete newPending[itemKey];
+        return newPending;
+      });
+      
+      showNotification(`${pending.length} notification(s) sent successfully!`, 'success');
+      
+    } catch (error) {
+      console.error('Failed to send notifications:', error);
+      showNotification('Failed to send notifications', 'error');
+    } finally {
+      setSavingNotes(prev => ({ ...prev, [itemKey]: false }));
+    }
+  };
+
+  const showNotification = (message, type = 'info') => {
+    const colors = {
+      success: '#28a745',
+      error: '#dc3545',
+      info: '#17a2b8'
+    };
+    
+    const messageEl = document.createElement('div');
+    messageEl.textContent = message;
+    messageEl.style.cssText = `
+      position: fixed;
+      top: 100px;
+      right: 20px;
+      background: ${colors[type]};
+      color: white;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 10000;
+      animation: slideInRight 0.3s ease-out;
+    `;
+    
+    document.body.appendChild(messageEl);
+    
+    setTimeout(() => {
+      messageEl.remove();
+    }, 3000);
+  };
+
+  const showTagSuccessMessage = (userName) => {
+    // Create a temporary success message
+    const message = document.createElement('div');
+    message.textContent = `✅ ${userName} has been notified!`;
+    message.style.cssText = `
+      position: fixed;
+      top: 100px;
+      right: 20px;
+      background: #28a745;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 10000;
+      animation: slideInRight 0.3s ease-out;
+    `;
+    
+    // Add animation CSS
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    document.body.appendChild(message);
+    
+    setTimeout(() => {
+      message.remove();
+      style.remove();
+    }, 3000);
+  };
+
+  // Close tag suggestions when clicking outside
+  const handleClickOutside = (e) => {
+    if (!e.target.closest('.tag-suggestions') && !e.target.closest('.notes-textarea')) {
+      setShowTagSuggestions(false);
+      setActiveTextarea(null);
+    }
+  };
+
+  // Add click outside listener
+  React.useEffect(() => {
+    if (showTagSuggestions) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showTagSuggestions]);
+
+  // Function to render notes with highlighted tags
+  const renderNotesWithTags = (notes) => {
+    if (!notes || !CONFIG.TAGGING.ENABLED) return notes || '';
+    
+    try {
+      const notesString = String(notes);
+      const highlighting = CONFIG.TAGGING.HIGHLIGHTING;
+      const style = `background-color: ${highlighting.BACKGROUND_COLOR}; color: ${highlighting.TEXT_COLOR}; border-radius: ${highlighting.BORDER_RADIUS}; padding: ${highlighting.PADDING};`;
+      
+      // Replace @mentions with highlighted spans
+      return notesString.replace(/@(\w+)/g, `<span class="tag-highlight" style="${style}">@$1</span>`);
+    } catch (error) {
+      console.error('Error rendering notes with tags:', error);
+      return String(notes || '');
+    }
+  };
+
   // Filter gym items based on status
   const getFilteredGymItems = () => {
     const items = gymItems[activeGym] || [];
@@ -136,7 +388,13 @@ const Sidebar = ({
   // Format cost to ensure single $ symbol
   const formatCost = (cost) => {
     if (!cost) return '';
-    return `$${cost.replace(/[$]/g, '')}`;
+    try {
+      const costString = String(cost);
+      return `$${costString.replace(/[$]/g, '')}`;
+    } catch (error) {
+      console.error('Error formatting cost:', error);
+      return '';
+    }
   };
 
   // Get status color from STATUS_OPTIONS
@@ -166,17 +424,25 @@ const Sidebar = ({
 
   // Calculate total cost
   const totalCost = (gymItems[activeGym] || []).reduce((sum, item) => {
-    const cost = parseFloat(item.Cost?.replace(/[$]/g, '') || '0');
-    const qty = parseInt(item.quantity, 10);
-    if (!isNaN(cost) && !isNaN(qty)) {
-      return sum + cost * qty;
+    try {
+      console.log('Processing item for total cost:', item);
+      const costString = String(item?.Cost || '0');
+      console.log('Cost string:', costString, 'Type:', typeof costString);
+      const cost = parseFloat(costString.replace(/[$]/g, '') || '0');
+      const qty = parseInt(item?.quantity || 1, 10);
+      if (!isNaN(cost) && !isNaN(qty)) {
+        return sum + cost * qty;
+      }
+      return sum;
+    } catch (error) {
+      console.error('Error calculating cost for item:', item, error);
+      return sum;
     }
-    return sum;
   }, 0);
 
   return (
     <div className={`sidebar ${isExpanded ? 'expanded' : 'collapsed'}`}>
-      <style jsx>{`
+              <style>{`
         .sidebar {
           width: 0;
           background: #f8f9fa;
@@ -212,7 +478,7 @@ const Sidebar = ({
         }
 
         .sidebar-content {
-          padding: 8px;
+          padding: 4px;
           width: 100%;
           box-sizing: border-box;
           height: 100%;
@@ -221,7 +487,7 @@ const Sidebar = ({
 
         .sidebar-tabs {
           display: flex;
-          margin-bottom: 15px;
+          margin-bottom: 6px;
           border-bottom: 1px solid #dee2e6;
         }
 
@@ -264,7 +530,7 @@ const Sidebar = ({
         }
 
         .search-section {
-          margin-bottom: 20px;
+          margin-bottom: 8px;
           width: 100%;
           box-sizing: border-box;
         }
@@ -282,7 +548,7 @@ const Sidebar = ({
           display: flex;
           flex-wrap: wrap;
           gap: 2px;
-          margin-bottom: 16px;
+          margin-bottom: 6px;
           width: 100%;
           box-sizing: border-box;
           justify-content: center;
@@ -291,7 +557,7 @@ const Sidebar = ({
 
         .gym-tab {
           flex: 0 0 auto;
-          padding: 8px 10px;
+          padding: 4px 6px;
           border: 1px solid #ced4da;
           background: white;
           cursor: pointer;
@@ -302,9 +568,9 @@ const Sidebar = ({
           display: flex;
           align-items: center;
           justify-content: center;
-          min-height: 36px;
+          min-height: 24px;
           box-sizing: border-box;
-          width: 60px;
+          width: 55px;
         }
 
         .gym-tab.active {
@@ -385,63 +651,63 @@ const Sidebar = ({
         }
 
         .gym-item {
-          padding: 6px;
+          background: white;
           border: 1px solid #e9ecef;
           border-radius: 6px;
-          margin-bottom: 6px;
-          background: white;
-          transition: background-color 0.2s ease;
-          position: relative;
+          padding: 12px;
+          margin-bottom: 8px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
-        .gym-item:hover {
-          background: #f8f9fa;
-          border-color: #007bff;
-        }
-
-        .gym-item:last-child {
-          margin-bottom: 0;
-        }
-
-        .gym-item-header {
+        .gym-item-row {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          margin-bottom: 8px;          padding-left: 0;
-          margin-left: 0;
+          gap: 12px;
+          margin-bottom: 0;
         }
 
-        .remove-item-button {
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-size: 16px;
-          padding: 4px;
-          border-radius: 4px;
-          transition: all 0.2s ease;
-          color: #dc3545;
-          position: absolute;
-          top: 12px;
-          left: 12px;
-          z-index: 1;
-        }
-
-        .remove-item-button:hover {
-          background: #f8d7da;
-          color: #c82333;
-          transform: scale(1.1);
+        .gym-item-info {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
         }
 
         .gym-item-name {
           font-weight: 500;
           font-size: 13px;
           color: #222;
-          margin-bottom: 0;
-          text-align: left;
+          margin: 0;
           line-height: 1.2;
           width: 100%;
-          padding-left: 0;
-          margin-left: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .item-icons {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          gap: 2px;
+        }
+
+        .item-name-text {
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .gym-item-status-container {
+          width: 100%;
+          margin-top: 2px;
         }
 
         .gym-item-details {
@@ -449,17 +715,12 @@ const Sidebar = ({
           flex-direction: column;
           gap: 2px;
           width: 100%;
-          padding: 0;
-          margin: 0;
-          text-align: left;
-          align-items: flex-start;
         }
 
         .gym-item-brand {
           font-size: 11px;
           color: #666;
           margin: 0;
-          padding: 0;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -469,351 +730,9 @@ const Sidebar = ({
           font-size: 10px;
           color: #888;
           margin: 0;
-          padding: 0;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-        }
-
-        .gym-item-status {
-          font-size: 8px;
-          padding: 1px 4px;
-          border: 1px solid #ced4da;
-          border-radius: 3px;
-          background: white;
-          color: #333;
-          cursor: pointer;
-          width: 90px;
-          height: 24px;
-          margin-top: -4px;
-          margin-left: 6px;
-        }
-
-        .gym-item-price {
-          font-weight: 600;
-          color: #28a745;
-        }
-
-        .gym-item-qty {
-          background: #e9ecef;
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 12px;
-          font-weight: 500;
-        }
-
-        .gym-item-status {
-          font-size: 9px;
-          font-weight: 550;
-          padding: 1px 3px;
-          border-radius: 3px;
-          white-space: nowrap;
-          width: 70px;
-          box-sizing: border-box;
-        }
-
-        .status-note {
-          margin-top: 8px;
-          padding: 8px 12px;
-          background: #f8d7da;
-          border: 1px solid #f5c6cb;
-          border-radius: 4px;
-          font-size: 12px;
-          color: #721c24;
-        }
-
-        .gym-items-total {
-          padding: 15px;
-          background: #f8f9fa;
-          border-top: 1px solid #dee2e6;
-          font-weight: bold;
-          font-size: 16px;
-          color: #333;
-          border-radius: 0 0 8px 8px;
-        }
-
-        .copy-list-button {
-          width: 100%;
-          padding: 12px;
-          background: #007bff;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 600;
-          transition: background-color 0.2s ease;
-          margin-top: 8px;
-        }
-
-        .copy-list-button:hover {
-          background: #0056b3;
-        }
-
-        .save-button {
-          width: 100%;
-          padding: 12px;
-          background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-          color: white;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 600;
-          transition: all 0.3s ease;
-          margin-top: 10px;
-          box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
-        }
-
-        .save-button:hover {
-          background: linear-gradient(135deg, #218838 0%, #1ea085 100%);
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
-        }
-
-        .save-button:active {
-          transform: translateY(0);
-          box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
-        }
-
-        .button-group {
-          display: flex;
-          gap: 8px;
-          margin-top: 10px;
-        }
-
-        .button-group .copy-list-button,
-        .button-group .save-button {
-          flex: 1;
-          margin-top: 0;
-        }
-
-        .no-items-message {
-          padding: 20px;
-          text-align: center;
-          color: #6c757d;
-          font-style: italic;
-        }
-
-        .categories-section h3,
-        .brands-section h3 {
-          margin-bottom: 8px;
-          font-size: 14px;
-          font-weight: 600;
-          color: #333;
-        }
-
-        .categories-section,
-        .brands-section {
-          margin-bottom: 20px;
-        }
-
-        .category-list,
-        .brand-list {
-          display: block;
-        }
-
-        .category-list.collapsed,
-        .brand-list.collapsed {
-          max-height: 0;
-          overflow: hidden;
-          transition: max-height 0.3s ease;
-          margin: 0;
-          padding: 0;
-        }
-
-        .category-list.expanded,
-        .brand-list.expanded {
-          max-height: 500px;
-          overflow: visible;
-          transition: max-height 0.3s ease;
-          margin-top: 8px;
-        }
-
-        .category-item,
-        .brand-item {
-          padding: 6px 10px;
-          border: none;
-          background: none;
-          text-align: left;
-          cursor: pointer;
-          border-radius: 4px;
-          font-size: 0.85em;
-          color: #333;
-          transition: all 0.2s ease;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          margin: 0 0 4px 0;
-          display: block;
-          width: 100%;
-          box-sizing: border-box;
-        }
-
-        .category-item:last-child,
-        .brand-item:last-child {
-          margin-bottom: 0;
-        }
-
-        .category-item:hover,
-        .brand-item:hover {
-          background: #f8f9fa;
-          color: #007bff;
-          transform: translateY(-1px);
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .category-item.active,
-        .brand-item.active {
-          background: #f0f7ff;
-          color: #007bff;
-          font-weight: 600;
-          border-bottom: 2px solid #007bff;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Note Modal Styles */
-        .note-modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 2000;
-        }
-
-        .note-modal {
-          background: white;
-          border-radius: 8px;
-          padding: 20px;
-          width: 90%;
-          max-width: 400px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        }
-
-        .note-modal h3 {
-          margin: 0 0 10px 0;
-          color: #333;
-          font-size: 18px;
-        }
-
-        .note-modal p {
-          margin: 0 0 15px 0;
-          color: #6c757d;
-          font-size: 14px;
-        }
-
-        .note-textarea {
-          width: 100%;
-          padding: 10px;
-          border: 1px solid #ced4da;
-          border-radius: 4px;
-          font-size: 14px;
-          resize: vertical;
-          min-height: 80px;
-          font-family: inherit;
-        }
-
-        .note-textarea:focus {
-          outline: none;
-          border-color: #007bff;
-          box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-        }
-
-        .note-modal-buttons {
-          display: flex;
-          gap: 10px;
-          margin-top: 15px;
-        }
-
-        .note-modal-buttons button {
-          flex: 1;
-          padding: 10px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          transition: background-color 0.2s ease;
-        }
-
-        .note-modal-buttons button:first-child {
-          background: #007bff;
-          color: white;
-        }
-
-        .note-modal-buttons button:first-child:hover {
-          background: #0056b3;
-        }
-
-        .note-modal-buttons button:last-child {
-          background: #6c757d;
-          color: white;
-        }
-
-        .note-modal-buttons button:last-child:hover {
-          background: #545b62;
-        }
-
-        .gym-items-section h3 {
-          font-size: 16px;
-          color: #333;
-          margin-bottom: 10px;
-          font-weight: 600;
-        }
-
-        .gym-items-list {
-          margin-bottom: 12px;
-          width: 100%;
-          box-sizing: border-box;
-          overflow: hidden;
-        }
-
-        .gym-item-row {
-          display: flex;
-          align-items: flex-start;
-          gap: 6px;
-          padding: 8px 12px;
-          min-height: 60px;
-          width: 100%;
-          box-sizing: border-box;
-          border: 1px solid #e9ecef;
-          border-radius: 6px;
-          margin-bottom: 6px;
-          background: white;
-        }
-
-        .gym-item-info {
-          flex: 1;
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 4px;
-          padding: 0;
-          width: 100%;
-          box-sizing: border-box;
-          overflow: hidden;
-          text-align: left;
-        }
-
-        .gym-item-name {
-          font-weight: 500;
-          font-size: 13px;
-          color: #222;
-          margin: 0;
-          text-align: left;
-          line-height: 1.2;
-          width: 100%;
-          padding: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          align-self: flex-start;
         }
 
         .gym-item-controls {
@@ -822,10 +741,7 @@ const Sidebar = ({
           flex-direction: column;
           align-items: flex-end;
           gap: 6px;
-          justify-content: flex-start;
           min-width: 70px;
-          padding: 0;
-          margin: 0;
         }
 
         .gym-item-center {
@@ -833,7 +749,6 @@ const Sidebar = ({
           align-items: center;
           justify-content: center;
           gap: 2px;
-          margin-top: -4px;
           min-height: 24px;
         }
 
@@ -880,15 +795,195 @@ const Sidebar = ({
           text-align: right;
         }
 
-        @media (max-width: 600px) {
-          .gym-item-row {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 6px;
-          }
-          .gym-item-price-col {
-            align-items: flex-start;
-          }
+        .gym-item-status {
+          font-size: 10px;
+          font-weight: 550;
+          padding: 2px 4px;
+          border-radius: 3px;
+          white-space: nowrap;
+          width: 100%;
+          box-sizing: border-box;
+          cursor: pointer;
+        }
+
+        .gym-item-notes {
+          margin-top: 12px;
+          padding: 8px;
+          background: #f8f9fa;
+          border-radius: 4px;
+          border: 1px solid #e9ecef;
+        }
+
+
+
+        .notes-content {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          position: relative;
+        }
+
+        .justification-dropdown {
+          width: 100%;
+          font-size: 11px;
+          padding: 4px 6px;
+          border: 1px solid #ced4da;
+          border-radius: 3px;
+          background: white;
+          color: #333;
+        }
+
+        .justification-dropdown:focus {
+          outline: none;
+          border-color: #007bff;
+          box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.25);
+        }
+
+        .notes-textarea {
+          width: 100%;
+          font-size: 11px;
+          padding: 4px 6px;
+          border: 1px solid #ced4da;
+          border-radius: 3px;
+          background: white;
+          color: #333;
+          resize: vertical;
+          min-height: 40px;
+          font-family: inherit;
+        }
+
+        .notes-textarea:focus {
+          outline: none;
+          border-color: #007bff;
+          box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.25);
+        }
+
+        .notes-textarea::placeholder {
+          color: #6c757d;
+          font-style: italic;
+        }
+
+        .tag-suggestions {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          background: white;
+          border: 1px solid #ced4da;
+          border-radius: 4px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+          z-index: 1000;
+          max-height: 150px;
+          overflow-y: auto;
+        }
+
+        .tag-suggestion-item {
+          padding: 6px 8px;
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          border-bottom: 1px solid #f8f9fa;
+        }
+
+        .tag-suggestion-item:hover {
+          background: #f8f9fa;
+        }
+
+        .tag-suggestion-item:last-child {
+          border-bottom: none;
+        }
+
+        .tag-user-name {
+          font-size: 11px;
+          font-weight: 500;
+          color: #333;
+        }
+
+        .tag-user-email {
+          font-size: 9px;
+          color: #666;
+        }
+
+        .tag-user-role {
+          font-size: 9px;
+          color: #007bff;
+          font-weight: 500;
+        }
+
+        .tag-highlight {
+          background: #007bff;
+          color: white;
+          padding: 1px 3px;
+          border-radius: 2px;
+          font-weight: 500;
+        }
+
+        .save-note-section {
+          margin-top: 8px;
+          padding: 8px;
+          background: #f8f9fa;
+          border: 1px solid #e9ecef;
+          border-radius: 4px;
+        }
+
+        .pending-notifications {
+          margin-bottom: 6px;
+        }
+
+        .pending-count {
+          font-size: 10px;
+          font-weight: 600;
+          color: #495057;
+          display: block;
+          margin-bottom: 4px;
+        }
+
+        .pending-users {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+
+        .pending-user {
+          background: #007bff;
+          color: white;
+          padding: 2px 6px;
+          border-radius: 10px;
+          font-size: 9px;
+          font-weight: 500;
+        }
+
+        .save-note-btn {
+          width: 100%;
+          padding: 6px 8px;
+          background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+          color: white;
+          border: none;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .save-note-btn:hover:not(:disabled) {
+          background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+          transform: translateY(-1px);
+        }
+
+        .save-note-btn:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+
+        .spinning {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
 
         .gym-items-section {
@@ -937,32 +1032,108 @@ const Sidebar = ({
           box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
         }
 
+        .gym-items-list {
+          margin-bottom: 12px;
+          width: 100%;
+          box-sizing: border-box;
+          overflow: hidden;
+        }
+
+        .gym-items-total {
+          padding: 15px;
+          background: #f8f9fa;
+          border-top: 1px solid #dee2e6;
+          font-weight: bold;
+          font-size: 16px;
+          color: #333;
+          border-radius: 0 0 8px 8px;
+        }
+
+        .save-button {
+          width: 100%;
+          padding: 8px 12px;
+          background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          transition: all 0.3s ease;
+          margin-top: 10px;
+          box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+
+        .save-button:hover {
+          background: linear-gradient(135deg, #218838 0%, #1ea085 100%);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+
+        .save-button:active {
+          transform: translateY(0);
+          box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+        }
+
+        .copy-list-button {
+          width: 100%;
+          padding: 8px 12px;
+          background: #007bff;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          transition: background-color 0.2s ease;
+          margin-top: 8px;
+        }
+
+        .copy-list-button:hover {
+          background: #0056b3;
+        }
+
+        .no-items-message {
+          padding: 20px;
+          text-align: center;
+          color: #6c757d;
+          font-style: italic;
+        }
+
+        /* Filter Section Styles */
+        .filters-content {
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .categories-section {
+          margin-bottom: 20px;
+        }
+
         .special-filters {
           margin-bottom: 16px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid #e9ecef;
         }
 
         .categories-subsection {
-          margin-top: 8px;
+          margin-bottom: 16px;
         }
 
         .section-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
+          padding: 12px 15px;
+          background: #e9ecef;
+          border-radius: 6px;
           cursor: pointer;
-          padding: 8px 0;
-          border-bottom: 1px solid #e9ecef;
+          font-weight: 500;
+          font-size: 14px;
           margin-bottom: 8px;
           transition: background-color 0.2s ease;
         }
 
         .section-header:hover {
-          background-color: #e9ecef;
-          border-radius: 4px;
-          padding: 8px 4px;
-          margin: 0 -4px 8px -4px;
+          background: #dee2e6;
         }
 
         .section-header h3 {
@@ -972,10 +1143,153 @@ const Sidebar = ({
           color: #333;
         }
 
+        .collapse-arrow {
+          font-size: 12px;
+          transition: transform 0.2s ease;
+        }
+
+        .collapse-arrow.collapsed {
+          transform: rotate(-90deg);
+        }
+
+        .category-item {
+          display: block;
+          width: 100%;
+          padding: 8px 12px;
+          margin-bottom: 4px;
+          border: none;
+          background: white;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 13px;
+          color: #333;
+          text-align: left;
+          transition: all 0.2s ease;
+          border: 1px solid #e9ecef;
+        }
+
+        .category-item:hover {
+          background: #f8f9fa;
+          border-color: #007bff;
+        }
+
+        .category-item.active {
+          background: #007bff;
+          color: white;
+          border-color: #007bff;
+        }
+
+        .brands-section {
+          margin-bottom: 20px;
+        }
+
+        .brand-item {
+          display: block;
+          width: 100%;
+          padding: 8px 12px;
+          margin-bottom: 4px;
+          border: none;
+          background: white;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 13px;
+          color: #333;
+          text-align: left;
+          transition: all 0.2s ease;
+          border: 1px solid #e9ecef;
+        }
+
+        .brand-item:hover {
+          background: #f8f9fa;
+          border-color: #007bff;
+        }
+
+        .brand-item.active {
+          background: #007bff;
+          color: white;
+          border-color: #007bff;
+        }
+
         .toggle-icon {
           font-size: 12px;
-          color: #6c757d;
+          color: #666;
           transition: transform 0.2s ease;
+        }
+
+        .categories-list,
+        .brands-list {
+          margin-top: 8px;
+        }
+
+        .filter-item {
+          display: block;
+          width: 100%;
+          padding: 8px 12px;
+          margin-bottom: 4px;
+          border: none;
+          background: white;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 13px;
+          color: #333;
+          text-align: left;
+          transition: all 0.2s ease;
+          border: 1px solid #e9ecef;
+        }
+
+        .filter-item:hover {
+          background: #f8f9fa;
+          border-color: #007bff;
+        }
+
+        .filter-item.active {
+          background: #007bff;
+          color: white;
+          border-color: #007bff;
+        }
+
+        /* Fix notes textarea sizing */
+        .notes-textarea {
+          width: 100%;
+          font-size: 11px;
+          padding: 4px 6px;
+          border: 1px solid #ced4da;
+          border-radius: 3px;
+          background: white;
+          color: #333;
+          resize: vertical;
+          min-height: 40px;
+          max-height: 120px;
+          font-family: inherit;
+          box-sizing: border-box;
+        }
+
+        @media (max-width: 600px) {
+          .gym-item-row {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+          }
+          
+          .gym-item-controls {
+            align-items: flex-start;
+            min-width: auto;
+          }
+          
+          .gym-item-notes {
+            margin-top: 8px;
+            padding: 6px;
+          }
+          
+          .notes-content {
+            gap: 4px;
+          }
+          
+          .justification-dropdown,
+          .notes-textarea {
+            font-size: 10px;
+            padding: 3px 4px;
+          }
         }
       `}</style>
 
@@ -1133,58 +1447,154 @@ const Sidebar = ({
                 <>
                   <div className="gym-items-list">
                     {getFilteredGymItems().map((item, index) => (
-                      <div key={index} className="gym-item gym-item-row">
-                        {/* Left side: Item Info */}
-                        <div className="gym-item-info">
-                          <div className="gym-item-name">
-                            {item["Item Name"]}
-                            {(item.Preferred === 'P' || item.Preferred === 'YES' || item.Preferred === 'TRUE') && (
-                              <span role="img" aria-label="star"> ⭐</span>
-                            )}
-                            {(item.Preferred === 'C' || item.Preferred === 'COACH' || item.Preferred === 'RECOMMENDED') && (
-                              <span role="img" aria-label="trophy"> 🏆</span>
-                            )}
-                            {item.Preferred === 'P/C' && (
-                              <span role="img" aria-label="star and trophy"> ⭐🏆</span>
-                            )}
+                      <div key={index} className="gym-item">
+                        {/* Main item row */}
+                        <div className="gym-item-row">
+                          {/* Left side: Item Info */}
+                          <div className="gym-item-info">
+                            <div className="gym-item-name">
+                              <span className="item-icons">
+                                {item.Preferred === 'P' && (
+                                  <span role="img" aria-label="star">⭐</span>
+                                )}
+                                {item.Preferred === 'C' && (
+                                  <span role="img" aria-label="trophy">🏆</span>
+                                )}
+                                {item.Preferred === 'P+C' && (
+                                  <span role="img" aria-label="star and trophy">⭐🏆</span>
+                                )}
+                              </span>
+                              <span className="item-name-text">{item["Item Name"]}</span>
+                            </div>
+                            <div className="gym-item-status-container">
+                              <select 
+                                className="gym-item-status"
+                                value={item.status || 'Pending Approval'}
+                                onChange={(e) => handleStatusChange(item["Item Name"], e.target.value)}
+                                style={{
+                                  color: getStatusColor(item.status || 'Pending Approval').color,
+                                  backgroundColor: getStatusColor(item.status || 'Pending Approval').bgColor,
+                                  borderColor: getStatusColor(item.status || 'Pending Approval').color
+                                }}
+                              >
+                                {STATUS_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
-                          <div className="gym-item-details">
-                            <div className="gym-item-brand">{item.Brand}</div>
-                            <div className="gym-item-part-number">
-                              {item["Exos Part Number"] || item["Part Number"] || item["part_number"] || 'No Part Number'}
+                          {/* Right side: Quantity and Price */}
+                          <div className="gym-item-controls">
+                            <div className="gym-item-price">{item.Cost ? formatCost(item.Cost) : ''}</div>
+                            <div className="gym-item-center">
+                              <button className="qty-btn" onClick={() => onQtyChange(activeGym, index, (parseInt(item.quantity, 10) || 1) - 1)}>-</button>
+                              <input
+                                type="number"
+                                className="qty-input"
+                                min="0"
+                                value={item.quantity}
+                                onChange={e => onQtyChange(activeGym, index, parseInt(e.target.value) || 0)}
+                              />
+                              <button className="qty-btn" onClick={() => onQtyChange(activeGym, index, (parseInt(item.quantity, 10) || 1) + 1)}>+</button>
                             </div>
                           </div>
                         </div>
-                        {/* Right side: Status, Quantity and Price */}
-                        <div className="gym-item-controls">
-                          <div className="gym-item-price">{item.Cost ? formatCost(item.Cost) : ''}</div>
-                          <div className="gym-item-center">
-                            <button className="qty-btn" onClick={() => onQtyChange(activeGym, index, (parseInt(item.quantity, 10) || 1) - 1)}>-</button>
-                            <input
-                              type="number"
-                              className="qty-input"
-                              min="0"
-                              value={item.quantity}
-                              onChange={e => onQtyChange(activeGym, index, parseInt(e.target.value) || 0)}
+                        
+                        {/* Notes Section - Full width underneath */}
+                        <div className="gym-item-notes">
+                          <div className="notes-content">
+                            <select 
+                              className="justification-dropdown"
+                              value={item.justification || ''}
+                              onChange={(e) => onJustificationChange && onJustificationChange(activeGym, index, e.target.value)}
+                            >
+                              {JUSTIFICATION_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <textarea
+                              className="notes-textarea"
+                              placeholder="Add notes about this item (optional)... Use @ to tag someone (e.g., @john)"
+                              value={item.notes || ''}
+                              onChange={(e) => handleTagInput(e, activeGym, index)}
+                              onKeyDown={(e) => {
+                                if (showTagSuggestions && e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (tagSuggestions.length > 0) {
+                                    selectTag(tagSuggestions[0]);
+                                  }
+                                }
+                              }}
+                              rows="2"
                             />
-                            <button className="qty-btn" onClick={() => onQtyChange(activeGym, index, (parseInt(item.quantity, 10) || 1) + 1)}>+</button>
+                            {/* Tag suggestions dropdown */}
+                            {showTagSuggestions && activeTextarea?.gym === activeGym && activeTextarea?.index === index && (
+                              <div className="tag-suggestions">
+                                {tagSuggestions.map((user) => {
+                                  try {
+                                    const displayFormat = String(CONFIG.TAGGING.SETTINGS.DISPLAY_FORMAT || '');
+                                    const displayName = displayFormat
+                                      .replace('{name}', String(user?.name || ''))
+                                      .replace('{role}', String(user?.role || ''))
+                                      .replace('{email}', String(user?.email || ''));
+                                    
+                                    return (
+                                      <div
+                                        key={user?.id || Math.random()}
+                                        className="tag-suggestion-item"
+                                        onClick={() => selectTag(user)}
+                                      >
+                                        <span className="tag-user-name">{displayName}</span>
+                                        {CONFIG.TAGGING.SETTINGS.SHOW_ROLES && user?.role && (
+                                          <span className="tag-user-role">{user.role}</span>
+                                        )}
+                                      </div>
+                                    );
+                                  } catch (error) {
+                                    console.error('Error rendering tag suggestion:', error);
+                                    return null;
+                                  }
+                                })}
+                              </div>
+                            )}
+                            
+                            {/* Save Note Button */}
+                            {pendingNotifications[`${activeGym}-${index}`]?.length > 0 && (
+                              <div className="save-note-section">
+                                <div className="pending-notifications">
+                                  <span className="pending-count">
+                                    📧 {pendingNotifications[`${activeGym}-${index}`].length} pending notification(s)
+                                  </span>
+                                  <div className="pending-users">
+                                    {pendingNotifications[`${activeGym}-${index}`].map((pending, idx) => (
+                                      <span key={idx} className="pending-user">
+                                        @{pending.user.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                                <button
+                                  className="save-note-btn"
+                                  onClick={() => saveNote(activeGym, index)}
+                                  disabled={savingNotes[`${activeGym}-${index}`]}
+                                >
+                                  {savingNotes[`${activeGym}-${index}`] ? (
+                                    <>
+                                      <span className="spinning">📧</span> Sending...
+                                    </>
+                                  ) : (
+                                    <>
+                                      📧 Send Notifications
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            )}
                           </div>
-                          <select 
-                            className="gym-item-status"
-                            value={item.status || 'Pending Approval'}
-                            onChange={(e) => handleStatusChange(item["Item Name"], e.target.value)}
-                            style={{
-                              color: getStatusColor(item.status || 'Pending Approval').color,
-                              backgroundColor: getStatusColor(item.status || 'Pending Approval').bgColor,
-                              borderColor: getStatusColor(item.status || 'Pending Approval').color
-                            }}
-                          >
-                            {STATUS_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
                         </div>
                       </div>
                     ))}
@@ -1273,8 +1683,8 @@ Sidebar.propTypes = {
   handleRemoveFromGym: PropTypes.func,
   onQtyChange: PropTypes.func,
   onStatusChange: PropTypes.func,
-  statusNotes: PropTypes.object,
   onNoteSubmit: PropTypes.func,
+  onJustificationChange: PropTypes.func,
   saveGymItems: PropTypes.func,
   isSaving: PropTypes.bool,
   // Tab control
