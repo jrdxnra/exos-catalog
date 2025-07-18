@@ -4,63 +4,29 @@ import './App.css';
 import LoadingState from './components/LoadingState';
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
+import NotificationManager from './components/NotificationManager';
+import SyncApprovalModal from './components/SyncApprovalModal';
+
+// Firebase imports
+import firebaseService from './services/firebaseService';
+import MigrationUtils from './utils/migrationUtils';
+import CONFIG from './config';
 // Lazy load ProductCard
 const ProductCard = lazy(() => import('./components/ProductCard'));
 
-// Mock data for development and fallback
-const mockData = [
-  {
-    "Item Name": "Dumbbell Set",
-    "Brand": "PowerBlock",
-    "Category": "Strength",
-    "Cost": "299.99",
-    "Exos Part Number": "DB-001",
-    "Preferred": "P"
-  },
-  {
-    "Item Name": "Resistance Bands",
-    "Brand": "TheraBand",
-    "Category": "Mobility",
-    "Cost": "49.99",
-    "Exos Part Number": "RB-002",
-    "Preferred": "P/C"
-  },
-  {
-    "Item Name": "Foam Roller",
-    "Brand": "TriggerPoint",
-    "Category": "Recovery",
-    "Cost": "34.99",
-    "Exos Part Number": "FR-003",
-    "Preferred": "N"
-  },
-  {
-    "Item Name": "Kettlebell",
-    "Brand": "Rogue",
-    "Category": "Strength",
-    "Cost": "89.99",
-    "Exos Part Number": "KB-004",
-    "Preferred": "C"
-  },
-  {
-    "Item Name": "Yoga Mat",
-    "Brand": "Manduka",
-    "Category": "Mobility",
-    "Cost": "129.99",
-    "Exos Part Number": "YM-005",
-    "Preferred": "N"
-  }
-];
 
-const GYM_ITEMS_API_URL = 'https://sheetdb.io/api/v1/uwc1t04gagpfq'; // Reverted to old endpoint to maintain data
-const SHEETDB_TAB_NAME = 'Gym Items List';
-const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbyPDJRGyVH0H9LCRBS4uMowMPE59KphrQf7g16RpbkrztR36OKGmSKMCpdA8uTAD62C/exec';
 
-const LOCAL_STORAGE_KEY = 'cachedProducts';
-const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes cache instead of default
+// Use configuration values
+const CATALOG_IMPORT_URL = CONFIG.GOOGLE_SHEETS.CATALOG_IMPORT_URL;
+const CATALOG_UPDATE_URL = CONFIG.GOOGLE_SHEETS.CATALOG_UPDATE_URL;
+const SHEETS_URL = CONFIG.GOOGLE_SHEETS.SHEETS_URL;
+
+const LOCAL_STORAGE_KEY = CONFIG.STORAGE.LOCAL_STORAGE_KEY;
+const CACHE_DURATION = CONFIG.STORAGE.CACHE_DURATION;
 
 function App() {
-  const [products, setProducts] = useState(mockData); // Start with mock data immediately
-  const [loading, setLoading] = useState(false); // Start as not loading
+  const [products, setProducts] = useState([]); // Start with empty array
+  const [loading, setLoading] = useState(true); // Start as loading
   const [copySuccess, setCopySuccess] = useState(null);
   
   // Filter states
@@ -86,14 +52,14 @@ function App() {
   const [activeTab, setActiveTab] = useState('filters');
 
   // Gym configuration - easy to add/remove gyms
-  const gyms = ['MP2', 'MAT3', 'MP5', 'HMBLT', 'CRSM', 'TM3']; // Add new gyms here
+  const gyms = CONFIG.APP.GYMS; // Add new gyms in config.js
 
   // Infinite scroll states
   const [visibleProducts, setVisibleProducts] = useState([]);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const ITEMS_PER_LOAD = 12;
+  const ITEMS_PER_LOAD = CONFIG.APP.ITEMS_PER_LOAD;
   const observerRef = useRef();
   const loadingRef = useRef();
 
@@ -101,255 +67,206 @@ function App() {
   const [notification, setNotification] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [showNotificationManager, setShowNotificationManager] = useState(false);
 
-  // Helper function to handle rate limiting with retry logic
-  const fetchWithRetry = async (url, options = {}, maxRetries = 2, showWarning = false) => {
-    let rateLimited = false;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const response = await fetch(url, options);
-        
-        if (response.status === 429) {
-          rateLimited = true;
-          if (showWarning) {
-            console.log('🚨 429 Rate limit detected during user action - showing warning');
-          } else {
-            console.log('🚨 429 Rate limit detected during background operation - not showing warning');
-          }
-          
-          // Wait with longer exponential backoff to avoid rate limits
-          const delay = Math.pow(3, attempt) * 2000; // 6s, 18s
-          console.log(`Rate limited (attempt ${attempt}/${maxRetries}). Waiting ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-        
-        return response;
-      } catch (error) {
-        if (attempt === maxRetries) {
-          // If we've exhausted all retries and had rate limiting, throw a specific error
-          if (rateLimited) {
-            const rateLimitError = new Error('SheetDB rate limit reached after all retries');
-            rateLimitError.isRateLimit = true;
-            throw rateLimitError;
-          }
-          throw error;
-        }
-        console.log(`Request failed (attempt ${attempt}/${maxRetries}). Retrying...`);
-        await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
-      }
-    }
-    
-    // If we get here, all retries were exhausted due to rate limiting
-    if (rateLimited) {
-      const rateLimitError = new Error('SheetDB rate limit reached after all retries');
-      rateLimitError.isRateLimit = true;
-      throw rateLimitError;
-    }
-  };
 
-  // Fetch equipment list from Apps Script endpoint with LocalStorage caching
+  
+  // Edit mode state
+  const [isEditMode, setIsEditMode] = useState(false);
+  
+  // Sync state
+  const [isSyncInProgress, setIsSyncInProgress] = useState(false);
+  
+  // Sync approval modal state
+  const [showSyncApproval, setShowSyncApproval] = useState(false);
+  const [sheetsData, setSheetsData] = useState(null);
+  
+  // Duplicate cleanup state
+  const [needsCleanup, setNeedsCleanup] = useState(false);
+
+  // Check for stale sync state on app startup
   useEffect(() => {
-    // Try to load from localStorage first with cache duration check
-    const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
-    const cacheTimestamp = localStorage.getItem(`${LOCAL_STORAGE_KEY}_timestamp`);
-    const now = Date.now();
+    const syncInProgress = localStorage.getItem('syncInProgress');
+    const syncStartTime = localStorage.getItem('syncStartTime');
     
-    if (cached && cacheTimestamp) {
-      const cacheAge = now - parseInt(cacheTimestamp);
-      if (cacheAge < CACHE_DURATION) {
-        try {
-          const parsed = JSON.parse(cached);
-          console.log('Loading cached data (age:', Math.round(cacheAge / 1000), 'seconds):', parsed);
-          if (parsed && parsed.length > 0) {
-            setProducts(parsed);
-            setLoading(false);
-            console.log('Using cached data, skipping API call to avoid rate limits');
-            return; // Skip API call if cache is fresh
-          }
-        } catch (err) {
-          console.error('Error parsing cached data:', err);
-        }
-      } else {
-        console.log('Cache expired (age:', Math.round(cacheAge / 1000), 'seconds), fetching fresh data');
+    if (syncInProgress === 'true' && syncStartTime) {
+      const startTime = parseInt(syncStartTime);
+      const now = Date.now();
+      const timeDiff = now - startTime;
+      
+      // If sync has been "in progress" for more than 5 minutes, it's probably stale
+      if (timeDiff > 5 * 60 * 1000) {
+        console.log('Detected stale sync state, clearing...');
+        localStorage.removeItem('syncInProgress');
+        localStorage.removeItem('syncStartTime');
+        showNotification('Previous sync was interrupted. You can safely sync again.', 'info');
+        } else {
+        console.log('Sync in progress, preventing new syncs...');
+        setIsSyncInProgress(true);
       }
     }
-    
-    // Always fetch fresh data in the background
+  }, []);
+
+  // Listen for sync state changes
+  useEffect(() => {
+    const checkSyncState = () => {
+      const syncInProgress = localStorage.getItem('syncInProgress') === 'true';
+      setIsSyncInProgress(syncInProgress);
+    };
+
+    // Check immediately
+    checkSyncState();
+
+    // Set up interval to check for changes
+    const interval = setInterval(checkSyncState, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+
+
+
+
+  // Fetch equipment list from Firebase with Google Sheets import capability
+  useEffect(() => {
     const fetchCatalog = async () => {
       try {
-        console.log('Fetching catalog from:', CATALOG_API_URL);
+        console.log('Fetching catalog from Firebase...');
         
-        // Try different approaches to get the actual data
-        const urls = [
-          CATALOG_API_URL,
-          `${CATALOG_API_URL}?action=getCatalog`,
-          `${CATALOG_API_URL}?type=catalog`,
-          `${CATALOG_API_URL}?data=catalog`,
-          // Use the same SheetDB endpoint with different sheet names
-          `${GYM_ITEMS_API_URL}?sheet=Equipment List`,
-          `${GYM_ITEMS_API_URL}?sheet=Catalog`,
-          `${GYM_ITEMS_API_URL}?sheet=Products`,
-          `${GYM_ITEMS_API_URL}?sheet=Equipment`
-        ];
+        // Try to load from localStorage first with cache duration check
+        const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+        const cacheTimestamp = localStorage.getItem(`${LOCAL_STORAGE_KEY}_timestamp`);
+        const now = Date.now();
         
-        let data = null;
-        
-        for (const url of urls) {
-          try {
-            console.log('Trying URL:', url);
-            const response = await fetch(url);
-            if (!response.ok) continue;
-            
-            const responseData = await response.json();
-            console.log('Response from', url, ':', responseData);
-            
-            // Check if this response contains actual catalog data
-            if (Array.isArray(responseData) || 
-                (responseData && typeof responseData === 'object' && 
-                 (responseData.data || responseData.values || responseData.rows || responseData.items))) {
-              data = responseData;
-              console.log('Found catalog data at:', url);
-              break;
-            }
-          } catch (err) {
-            console.log('Failed to fetch from:', url, err);
-          }
-        }
-        
-        // If no data found via GET, try POST to Google Apps Script
-        if (!data) {
-          try {
-            console.log('Trying POST to Google Apps Script for catalog data');
-            const postResponse = await fetch(CATALOG_API_URL, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                action: 'getAllItems',
-                sheetName: 'Equipment List'
-              })
-            });
-            
-            if (postResponse.ok) {
-              const postData = await postResponse.json();
-              console.log('POST response:', postData);
-              
-              if (postData.success && postData.items) {
-                data = postData.items;
-                console.log('Found catalog data via POST');
+        if (cached && cacheTimestamp) {
+          const cacheAge = now - parseInt(cacheTimestamp);
+          if (cacheAge < CACHE_DURATION) {
+            try {
+              const parsed = JSON.parse(cached);
+              console.log('Loading cached data (age:', Math.round(cacheAge / 1000), 'seconds)');
+              if (parsed && parsed.length > 0) {
+                setProducts(parsed);
+                setLoading(false);
+                console.log('Using cached data');
+                return;
               }
+            } catch (err) {
+              console.error('Error parsing cached data:', err);
             }
-          } catch (err) {
-            console.log('POST request failed:', err);
           }
         }
         
-        if (!data) {
-          console.log('No catalog data found from any URL, keeping current products');
-          return;
-        }
-        
-        console.log('Raw data from API:', data);
-        console.log('Data type:', typeof data);
-        console.log('Data keys:', Object.keys(data || {}));
-        
-        // Handle different data formats from Google Sheets
-        let itemsArray = [];
-        
-        if (Array.isArray(data)) {
-          // Data is already an array
-          itemsArray = data;
-          console.log('Data is already an array, length:', itemsArray.length);
-          console.log('Sample raw item:', itemsArray[0]);
-          console.log('Sample raw item keys:', itemsArray[0] ? Object.keys(itemsArray[0]) : 'No items');
-        } else if (data && typeof data === 'object') {
-          // Data might be an object with different structures
-          if (data.items && Array.isArray(data.items)) {
-            // Data is in 'items' property (Google Apps Script format)
-            itemsArray = data.items;
-            console.log('Data found in data.items, length:', itemsArray.length);
-          } else if (data.data && Array.isArray(data.data)) {
-            // Data is wrapped in a 'data' property
-            itemsArray = data.data;
-            console.log('Data found in data.data, length:', itemsArray.length);
-          } else if (data.values && Array.isArray(data.values)) {
-            // Data is in 'values' property (Google Sheets API format)
-            itemsArray = data.values;
-            console.log('Data found in data.values, length:', itemsArray.length);
-          } else if (data.rows && Array.isArray(data.rows)) {
-            // Data is in 'rows' property
-            itemsArray = data.rows;
-            console.log('Data found in data.rows, length:', itemsArray.length);
-          } else {
-            // Try to convert object to array
-            itemsArray = Object.values(data);
-            console.log('Converted object to array, length:', itemsArray.length);
-          }
-        }
-        
-        console.log('Processed items array:', itemsArray);
-        console.log('First few items:', itemsArray.slice(0, 3));
-        
-        // Only update products if we have valid data
-        if (Array.isArray(itemsArray) && itemsArray.length > 0) {
-          const normalized = itemsArray.map(item => {
-            const normalizedItem = {
-              "Item Name": (item["item name"] || item["Item Name"] || item["ItemName"] || "").trim(),
-              "Brand": (item["brand"] || item["Brand"] || "").trim(),
-              "Category": (item["category"] || item["Category"] || "").trim(),
-              "Cost": item["cost"] !== undefined ? String(item["cost"]) : (item["Cost"] !== undefined ? String(item["Cost"]) : ""),
-              "Exos Part Number": (item["EXOS Part Number"] || item["exos part number"] || item["Exos Part Number"] || item["Part Number"] || "").trim(),
-              "Preferred": (item["preferred"] || item["Preferred"] || "").trim().toUpperCase(),
-              "URL": (item["url"] || item["URL"] || "").trim()
-            };
+        // Try Firebase first
+        try {
+          const firebaseItems = await firebaseService.getCatalogItems();
+          
+          if (firebaseItems && firebaseItems.length > 0) {
+            console.log('Successfully fetched', firebaseItems.length, 'items from Firebase');
             
-            // Debug: Log part number mapping for first few items
-            if (itemsArray.indexOf(item) < 3) {
-              console.log('Normalizing item:', item["Item Name"] || item["item name"]);
-              console.log('  Raw part number fields:', {
-                "EXOS Part Number": item["EXOS Part Number"],
-                "exos part number": item["exos part number"],
-                "Exos Part Number": item["Exos Part Number"],
-                "Part Number": item["Part Number"]
-              });
-              console.log('  Final part number:', normalizedItem["Exos Part Number"]);
-            }
+            // Convert Firebase format to app format and preserve Firebase IDs
+            const normalizedProducts = firebaseItems.map(item => ({
+              id: item.id, // Preserve Firebase ID for updates
+              "Item Name": item["Item Name"] || "",
+              "Brand": item["Brand"] || "",
+              "Category": item["Category"] || "",
+              "Cost": item["Cost"] || "",
+              "EXOS Part Number": item["EXOS Part Number"] || "",
+              "Preferred": item["Preferred"] || "",
+              "URL": item["URL"] || ""
+            }));
             
-            return normalizedItem;
-          });
-          console.log('Normalized products from Google Sheet:', normalized);
-          
-          // Only update if we have meaningful data (not just empty objects)
-          const validProducts = normalized.filter(product => 
-            product["Item Name"] && product["Item Name"].length > 0
-          );
-          
-          console.log('Valid products count:', validProducts.length);
-          console.log('Sample valid product:', validProducts[0]);
-          
-          if (validProducts.length > 0) {
-            console.log('Setting products from Google Sheet:', validProducts.length, 'products');
-            setProducts(validProducts);
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(validProducts));
+            setProducts(normalizedProducts);
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(normalizedProducts));
             localStorage.setItem(`${LOCAL_STORAGE_KEY}_timestamp`, Date.now().toString());
+            console.log('Using Firebase data');
+            return;
           } else {
-            console.log('Google Sheet returned empty data, keeping current products');
-            console.log('All normalized products were filtered out as invalid');
-            console.log('Sample normalized product:', normalized[0]);
+            console.log('Firebase returned empty catalog, trying Google Sheets import...');
+          }
+        } catch (firebaseError) {
+          console.log('Firebase fetch failed, trying Google Sheets import:', firebaseError.message);
+        }
+        
+        // If Firebase is empty or failed, try to import from Google Sheets
+        console.log('Importing catalog from Google Sheets...');
+        
+        try {
+          const response = await fetch(CATALOG_IMPORT_URL);
+          if (response.ok) {
+            const data = await response.json();
+              
+            if (Array.isArray(data) && data.length > 0) {
+              console.log('Raw data from Google Sheets:', data.length, 'items');
+        
+              // Process data
+        const normalized = data.map(item => ({
+          "Item Name": (item["item name"] || item["Item Name"] || item["ItemName"] || "").trim(),
+          "Brand": (item["brand"] || item["Brand"] || "").trim(),
+          "Category": (item["category"] || item["Category"] || "").trim(),
+          "Cost": item["cost"] !== undefined ? String(item["cost"]) : (item["Cost"] !== undefined ? String(item["Cost"]) : ""),
+                "EXOS Part Number": (item["EXOS Part Number"] || item["exos part number"] || item["Exos Part Number"] || item["Part Number"] || "").trim(),
+          "Preferred": (item["preferred"] || item["Preferred"] || "").trim().toUpperCase(),
+          "URL": (item["url"] || item["URL"] || "").trim()
+        }));
+        
+              // Filter valid products
+        const validProducts = normalized.filter(product => 
+          product["Item Name"] && product["Item Name"].length > 0
+        );
+        
+        console.log('Valid products count:', validProducts.length);
+        
+        if (validProducts.length > 0) {
+                console.log('Setting products from Google Sheets import:', validProducts.length, 'products');
+          setProducts(validProducts);
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(validProducts));
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_timestamp`, Date.now().toString());
+          
+                // Migrate this data to Firebase for future use
+            MigrationUtils.migrateCatalogData(validProducts)
+                  .then(() => {
+                    console.log('Catalog migration to Firebase completed');
+                    // After migration, reload from Firebase to get IDs
+                    firebaseService.getCatalogItems()
+                      .then(firebaseItems => {
+                        if (firebaseItems && firebaseItems.length > 0) {
+                          const normalizedProducts = firebaseItems.map(item => ({
+                            id: item.id,
+                            "Item Name": item["Item Name"] || "",
+                            "Brand": item["Brand"] || "",
+                            "Category": item["Category"] || "",
+                            "Cost": item["Cost"] || "",
+                            "EXOS Part Number": item["EXOS Part Number"] || "",
+                            "Preferred": item["Preferred"] || "",
+                            "URL": item["URL"] || ""
+                          }));
+                          setProducts(normalizedProducts);
+                          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(normalizedProducts));
+                          localStorage.setItem(`${LOCAL_STORAGE_KEY}_timestamp`, Date.now().toString());
+                        }
+                      })
+                      .catch(error => console.log('Failed to reload from Firebase after migration:', error.message));
+                  })
+              .catch(error => console.log('Catalog migration failed (non-critical):', error.message));
+              } else {
+                console.log('Google Sheets returned empty data');
+                setProducts([]);
           }
         } else {
-          console.log('Google Sheet returned no valid data, keeping current products');
-          console.log('ItemsArray:', itemsArray);
-          console.log('Is array:', Array.isArray(itemsArray));
-          console.log('Length:', itemsArray?.length);
+              console.log('Google Sheets returned invalid data');
+              setProducts([]);
+            }
+          } else {
+            console.log('Google Sheets import failed');
+            setProducts([]);
+          }
+        } catch (err) {
+          console.error('Error importing from Google Sheets:', err);
+          setProducts([]);
         }
       } catch (err) {
         console.error('Error fetching catalog:', err);
-        console.log('Keeping current products due to fetch error');
-        // Don't overwrite current products on error
+        setProducts([]);
       } finally {
         setLoading(false);
       }
@@ -357,87 +274,50 @@ function App() {
     fetchCatalog();
   }, []);
 
-  // Load existing gym items from SheetDB
+  // Load existing gym items from Firebase
   useEffect(() => {
     const loadGymItems = async () => {
       try {
-        console.log('Testing SheetDB connection...');
-        console.log('API URL:', GYM_ITEMS_API_URL);
-        console.log('Sheet name:', SHEETDB_TAB_NAME);
+        console.log('Loading gym items from Firebase...');
         
-        // First, try to test the connection without specifying a sheet
-        try {
-          const testResponse = await fetch(GYM_ITEMS_API_URL);
-          console.log('Test response status:', testResponse.status);
-          if (testResponse.ok) {
-            const testData = await testResponse.json();
-            console.log('Test response data (first few items):', testData.slice(0, 3));
-          }
-        } catch (testErr) {
-          console.log('Test connection failed:', testErr);
+            const firebaseItems = await firebaseService.getGymItems();
+            
+            if (firebaseItems && firebaseItems.length > 0) {
+              console.log('Successfully loaded', firebaseItems.length, 'gym items from Firebase');
+              
+              // Convert to our local state format efficiently
+              const newGymItems = {};
+              
+              firebaseItems.forEach(item => {
+                const gym = item.Gym || 'Unknown Gym';
+                const quantity = parseInt(item.Quantity) || 1;
+                
+                if (!newGymItems[gym]) {
+                  newGymItems[gym] = [];
+                }
+                
+                newGymItems[gym].push({
+                  "Item Name": item["Item Name"] || "Unknown Item",
+                  "Brand": item.Brand || "Unknown Brand",
+                  "Category": item.Category || "General",
+                  "Cost": item.Cost || "",
+              "EXOS Part Number": (item["EXOS Part Number"] || item["Part Number"] || item["part_number"] || "").trim(),
+                  "URL": item.URL || "",
+                  "quantity": quantity,
+                  "status": item.Status || "Pending Approval",
+                  "note": item.Note || "",
+                  "justification": item.Justification || "",
+                  "notes": item.Notes || ""
+                });
+              });
+              
+              setGymItems(newGymItems);
+              console.log('Loaded gym items from Firebase:', Object.keys(newGymItems).length, 'gyms');
+            } else {
+          console.log('No gym items found in Firebase');
         }
-        
-        const response = await fetchWithRetry(`${GYM_ITEMS_API_URL}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}`, {}, 3, false);
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Load response error:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorText: errorText
-          });
-          throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-        }
-        
-        const data = await response.json();
-        console.log('Loaded data from SheetDB:', data);
-        console.log('Sample item keys:', data[0] ? Object.keys(data[0]) : 'No data');
-        
-        if (!Array.isArray(data) || data.length === 0) {
-          console.log('No data found in sheet');
-          return;
-        }
-        
-        // Filter out empty sheet indicators
-        const validItems = data.filter(item => 
-          item["Item Name"] && 
-          item["Item Name"] !== "EMPTY_SHEET"
-        );
-        
-        if (validItems.length === 0) {
-          console.log('No valid items found');
-          return;
-        }
-        
-        console.log('Loading', validItems.length, 'items from sheet');
-        
-        // Convert to our local state format
-        const newGymItems = {};
-        
-        validItems.forEach(item => {
-          const gym = item.Gym || 'Unknown Gym';
-          const quantity = parseInt(item.Quantity) || 1;
-          
-          if (!newGymItems[gym]) {
-            newGymItems[gym] = [];
-          }
-          
-          newGymItems[gym].push({
-            "Item Name": item["Item Name"] || "Unknown Item",
-            "Brand": item.Brand || "Unknown Brand",
-            "Category": item.Category || "General",
-            "Cost": item.Cost || "",
-            "Exos Part Number": (item["Exos Part Number"] || item["Part Number"] || item["part_number"] || "").trim(),
-            "URL": item.URL || "",
-            "quantity": quantity,
-            "status": item.Status || "Pending Approval",
-            "note": item.Note || ""
-          });
-        });
-        
-        setGymItems(newGymItems);
-        console.log('Loaded gym items:', newGymItems);
       } catch (err) {
-        console.error('Failed to load gym items:', err);
+        console.error('Failed to load gym items from Firebase:', err);
       }
     };
     
@@ -449,13 +329,6 @@ function App() {
     const uniqueCategories = [...new Set(products.map(product => product.Category).filter(Boolean))];
     const uniqueBrands = [...new Set(products.map(product => product.Brand).filter(Boolean))];
     
-    // Debug: Log sample product structure
-    if (products.length > 0) {
-      console.log('Sample product structure:', products[0]);
-      console.log('Sample product keys:', Object.keys(products[0]));
-      console.log('Sample product part number:', products[0]["Exos Part Number"]);
-    }
-    
     return {
       categories: uniqueCategories.sort(),
       brands: uniqueBrands.sort()
@@ -464,25 +337,42 @@ function App() {
 
   // Filter products
   const filteredProducts = useMemo(() => {
-    console.log('=== FILTERING DEBUG ===');
-    console.log('Products state:', products);
-    console.log('Products length:', products?.length);
-    console.log('Products type:', typeof products);
-    console.log('Is products array:', Array.isArray(products));
-    
-    console.log('Filtering products:', {
-      totalProducts: products?.length || 0,
-      searchTerm,
-      selectedCategory,
-      selectedBrand,
-      showAllItems
-    });
-    
     // Safety check - if no products, return empty array
     if (!Array.isArray(products) || products.length === 0) {
-      console.log('No products to filter - returning empty array');
       return [];
     }
+    
+    // Debug: Check for duplicate part numbers (normalized)
+    const partNumbers = products.map(p => p["EXOS Part Number"]).filter(Boolean);
+    const normalizedPartNumbers = partNumbers.map(pn => pn.trim().toUpperCase());
+    const duplicates = normalizedPartNumbers.filter((item, index) => normalizedPartNumbers.indexOf(item) !== index);
+    
+    if (duplicates.length > 0) {
+      console.warn('Found duplicate part numbers (normalized):', duplicates);
+      console.warn('Total products:', products.length);
+      console.warn('Unique part numbers:', new Set(normalizedPartNumbers).size);
+      
+      // Show detailed information about duplicates
+      const duplicateDetails = {};
+      duplicates.forEach(normalizedPartNumber => {
+        const itemsWithPartNumber = products.filter(p => 
+          p["EXOS Part Number"] && p["EXOS Part Number"].trim().toUpperCase() === normalizedPartNumber
+        );
+        duplicateDetails[normalizedPartNumber] = itemsWithPartNumber.map(item => ({
+          id: item.id,
+          name: item["Item Name"],
+          preferred: item.Preferred,
+          brand: item.Brand,
+          originalPartNumber: item["EXOS Part Number"]
+        }));
+      });
+      console.warn('Duplicate details:', duplicateDetails);
+      
+      // Automatically clean up duplicates in the background
+      setNeedsCleanup(true);
+    }
+    
+
     
     let base = products;
     
@@ -490,17 +380,13 @@ function App() {
     if (!searchTerm && !selectedCategory && !selectedBrand && !showAllItems) {
       base = products.filter(product => {
         const preferredValue = (product.Preferred || "").toUpperCase().trim();
-        const isPreferred = preferredValue === 'P' || preferredValue === 'P/C' || preferredValue === 'YES' || preferredValue === 'TRUE';
-        console.log(`Product ${product["Item Name"]} preferred value: "${preferredValue}", isPreferred: ${isPreferred}`);
-        return isPreferred;
+        return preferredValue === 'P' || preferredValue === 'P+C';
       });
-      console.log('Filtered to preferred only:', base.length, 'products');
     }
     
     const filtered = base.filter(product => {
       // Safety check for each product
       if (!product || typeof product !== 'object') {
-        console.warn('Invalid product found:', product);
         return false;
       }
       
@@ -508,13 +394,14 @@ function App() {
         product["Item Name"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.Brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.Category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product["Exos Part Number"]?.toLowerCase().includes(searchTerm.toLowerCase());
+        product["EXOS Part Number"]?.toLowerCase().includes(searchTerm.toLowerCase());
+      
       const matchesBrand = selectedBrand === '' || product.Brand === selectedBrand;
       
       // Handle different dropdown values for Preferred field
       const preferredValue = (product.Preferred || "").toUpperCase().trim();
-      const isPreferred = preferredValue === 'P' || preferredValue === 'P/C' || preferredValue === 'YES' || preferredValue === 'TRUE';
-      const isCoachRecommended = preferredValue === 'C' || preferredValue === 'P/C' || preferredValue === 'COACH' || preferredValue === 'RECOMMENDED';
+      const isPreferred = preferredValue === 'P' || preferredValue === 'P+C';
+      const isCoachRecommended = preferredValue === 'C' || preferredValue === 'P+C';
       
       if (selectedCategory === 'preferred') {
         return matchesSearch && matchesBrand && isPreferred;
@@ -522,34 +409,35 @@ function App() {
       if (selectedCategory === 'coach-recommended') {
         return matchesSearch && matchesBrand && isCoachRecommended;
       }
-      const matchesCategory = selectedCategory === '' || product.Category === selectedCategory;
-      const shouldShow = showAllItems || searchTerm !== '' || selectedCategory !== '' || selectedBrand !== '';
-      const finalResult = matchesSearch && matchesCategory && matchesBrand && (shouldShow || isPreferred);
       
-      console.log(`Product ${product["Item Name"]}: matchesSearch=${matchesSearch}, matchesBrand=${matchesBrand}, matchesCategory=${matchesCategory}, shouldShow=${shouldShow}, isPreferred=${isPreferred}, finalResult=${finalResult}`);
+      const matchesCategory = selectedCategory === '' || product.Category === selectedCategory;
+      
+      // Show all products if user has interacted with filters, otherwise show preferred OR coach recommended items
+      const hasUserInteraction = searchTerm !== '' || selectedCategory !== '' || selectedBrand !== '' || showAllItems;
+      const shouldShow = hasUserInteraction || isPreferred || isCoachRecommended;
+      
+      const finalResult = matchesSearch && matchesCategory && matchesBrand && shouldShow;
       
       return finalResult;
     });
     
-    console.log('Final filtered products:', filtered.length, 'products');
-    console.log('=== END FILTERING DEBUG ===');
     return filtered;
   }, [products, searchTerm, selectedCategory, selectedBrand, showAllItems]);
 
   // Reset visible products when filters change
   useEffect(() => {
-    console.log('=== VISIBLE PRODUCTS DEBUG ===');
-    console.log('Filtered products length:', filteredProducts.length);
-    console.log('ITEMS_PER_LOAD:', ITEMS_PER_LOAD);
-    console.log('Slice result:', filteredProducts.slice(0, ITEMS_PER_LOAD));
-    
     setVisibleProducts(filteredProducts.slice(0, ITEMS_PER_LOAD));
     setHasMore(filteredProducts.length > ITEMS_PER_LOAD);
-    
-    console.log('Set visible products to:', filteredProducts.slice(0, ITEMS_PER_LOAD).length);
-    console.log('Set hasMore to:', filteredProducts.length > ITEMS_PER_LOAD);
-    console.log('=== END VISIBLE PRODUCTS DEBUG ===');
-  }, [filteredProducts]);
+  }, [filteredProducts, ITEMS_PER_LOAD]);
+
+  // Ensure visible products are set when products are first loaded
+  useEffect(() => {
+    if (products.length > 0 && visibleProducts.length === 0) {
+      const initialProducts = products.slice(0, ITEMS_PER_LOAD);
+      setVisibleProducts(initialProducts);
+      setHasMore(products.length > ITEMS_PER_LOAD);
+    }
+  }, [products, visibleProducts.length, ITEMS_PER_LOAD]);
 
   // Load more products for infinite scroll
   const loadMoreProducts = useCallback(() => {
@@ -565,7 +453,7 @@ function App() {
       setHasMore(currentLength + ITEMS_PER_LOAD < filteredProducts.length);
       setIsLoadingMore(false);
     }, 500); // Simulate loading delay
-  }, [visibleProducts.length, filteredProducts, isLoadingMore, hasMore]);
+  }, [visibleProducts.length, filteredProducts, isLoadingMore, hasMore, ITEMS_PER_LOAD]);
 
   // Infinite scroll intersection observer
   useEffect(() => {
@@ -580,17 +468,16 @@ function App() {
     
     observerRef.current = observer;
     
+    // Re-observe the loading element whenever it changes
     if (loadingRef.current) {
       observer.observe(loadingRef.current);
     }
     
     return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, loadMoreProducts]);
+  }, [hasMore, isLoadingMore, loadMoreProducts, visibleProducts.length]);
 
   // Scroll to top functionality
   const scrollToTop = () => {
-    console.log("scrollToTop function called"); // Debug log
-    
     // Try all possible scroll containers
     const scrollTargets = [
       document.querySelector(".content-area"),
@@ -603,14 +490,12 @@ function App() {
     // Find the first target that has scroll content
     for (const target of scrollTargets) {
       if (target && (target.scrollTop > 0 || target.scrollY > 0)) {
-        console.log("Scrolling target:", target.className || target.tagName);
         target.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
     }
     
     // Fallback to window scroll
-    console.log("Using window scroll to top");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -641,7 +526,6 @@ function App() {
         scrollTop = window.pageYOffset || window.scrollY || 0;
       }
       
-      console.log('Scroll position detected:', scrollTop);
       setShowBackToTop(scrollTop > 300);
     };
     
@@ -694,7 +578,7 @@ function App() {
       product.Brand || '',
       product.Category || '',
       product.Cost ? `$${product.Cost}` : '',
-      product["Exos Part Number"] || '',
+              product["EXOS Part Number"] || '',
       product.URL || ''
     ].join('\t');
     navigator.clipboard.writeText(productInfo).then(() => {
@@ -712,7 +596,7 @@ function App() {
       const existingItems = prev[gym] || [];
       const existingIndex = existingItems.findIndex(item => 
         item["Item Name"] === product["Item Name"] && 
-        item["Exos Part Number"] === product["Exos Part Number"]
+        item["EXOS Part Number"] === product["EXOS Part Number"]
       );
       
       if (existingIndex !== -1) {
@@ -904,216 +788,150 @@ function App() {
     }
   };
 
+  const handleJustificationChange = async (gym, index, justification) => {
+    // Update justification in local state
+    setGymItems(prev => {
+      const updatedGymItems = { ...prev };
+      if (updatedGymItems[gym] && updatedGymItems[gym][index]) {
+        updatedGymItems[gym][index] = { 
+          ...updatedGymItems[gym][index], 
+          justification 
+        };
+      }
+      return updatedGymItems;
+    });
+    
+    // Justification updated locally - will be synced to sheet when Save is clicked
+    console.log('Justification updated locally - click Save to sync to sheet');
+  };
+
+  const handleGymNoteChange = async (gym, index, notes) => {
+    // Update notes in local state
+    setGymItems(prev => {
+      const updatedGymItems = { ...prev };
+      if (updatedGymItems[gym] && updatedGymItems[gym][index]) {
+        updatedGymItems[gym][index] = { 
+          ...updatedGymItems[gym][index], 
+          notes 
+        };
+      }
+      return updatedGymItems;
+    });
+    
+    // Notes updated locally - will be synced to sheet when Save is clicked
+    console.log('Notes updated locally - click Save to sync to sheet');
+  };
+
   const saveGymItems = async () => {
     try {
       setIsSaving(true);
       showLoadingCursor();
-      console.log('Starting two-step save process...');
+      console.log('Starting save process...');
 
-      // STEP 1: Pull existing data from sheet
-      console.log('Step 1: Pulling existing data...');
-      const existingDataResponse = await fetchWithRetry(`${GYM_ITEMS_API_URL}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}`, {}, 3, true);
-      if (!existingDataResponse.ok) {
-        throw new Error(`Failed to fetch existing data: ${existingDataResponse.status}`);
-      }
-      
-      const existingData = await existingDataResponse.json();
-      console.log('Found', existingData.length, 'existing rows in sheet');
-
-      // STEP 2: Delete all existing rows using correct SheetDB syntax
-      console.log('Step 2: Deleting existing rows...');
-      let deletedCount = 0;
-      for (const row of existingData) {
-        try {
-          console.log('Attempting to delete row:', row["Item Name"]);
-          
-          // SheetDB DELETE requires query parameters: column and value
-          const deleteUrl = `${GYM_ITEMS_API_URL}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}&column=Item%20Name&value=${encodeURIComponent(row["Item Name"])}`;
-          console.log('Delete URL:', deleteUrl);
-          
-          const deleteResponse = await fetchWithRetry(deleteUrl, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' }
-          }, 3, true);
-          
-          console.log('Delete response status:', deleteResponse.status);
-          
-          if (deleteResponse.ok) {
-            deletedCount++;
-            console.log('Successfully deleted row:', row["Item Name"]);
-          } else {
-            console.warn('Failed to delete row:', row["Item Name"], 'Status:', deleteResponse.status);
-            const errorText = await deleteResponse.text();
-            console.warn('Delete error response:', errorText);
-          }
-        } catch (deleteErr) {
-          console.warn('Error deleting row:', row["Item Name"], deleteErr);
-        }
-      }
-      
-      console.log('Successfully deleted', deletedCount, 'out of', existingData.length, 'rows');
-
-      // STEP 3: Prepare new data (excluding 0 quantity items)
-      console.log('Step 3: Preparing new data...');
-      console.log('Current gymItems state:', gymItems);
+      // Prepare new data (excluding 0 quantity items) efficiently
+      console.log('Preparing new data...');
       
       const allItems = [];
       Object.entries(gymItems).forEach(([gym, items]) => {
         console.log(`Processing gym ${gym} with ${items.length} items`);
         
-        // Group identical items by combining quantities
-        const groupedItems = {};
+        // Group identical items by combining quantities efficiently
+        const groupedItems = new Map();
         
         items.forEach(item => {
-          console.log(`Processing item: ${item["Item Name"]} with quantity: ${item.quantity}`);
-          
           // Skip items with 0 quantity - they will be effectively deleted
           if (item.quantity <= 0) {
             console.log(`Skipping item with 0 quantity: ${item["Item Name"]}`);
             return;
           }
           
-          const key = `${item["Item Name"]}-${item["Exos Part Number"]}-${gym}`;
+          const key = `${item["Item Name"]}-${item["EXOS Part Number"]}-${gym}`;
           
-          if (groupedItems[key]) {
+          if (groupedItems.has(key)) {
             // Add quantities for identical items
-            groupedItems[key].quantity += item.quantity;
-            console.log(`Combined quantities for ${item["Item Name"]}: ${groupedItems[key].quantity}`);
+            const existing = groupedItems.get(key);
+            existing.quantity += item.quantity;
+            
             // Use the most recent status if there are conflicts
             if (item.status && item.status !== 'Pending Approval') {
-              groupedItems[key].status = item.status;
+              existing.status = item.status;
             }
             // Combine notes if both have them
-            if (item.note && groupedItems[key].note) {
-              groupedItems[key].note = `${groupedItems[key].note}; ${item.note}`;
+            if (item.note && existing.note) {
+              existing.note = `${existing.note}; ${item.note}`;
             } else if (item.note) {
-              groupedItems[key].note = item.note;
+              existing.note = item.note;
             }
           } else {
             // First occurrence of this item
-            groupedItems[key] = {
+            groupedItems.set(key, {
               "Item Name": item["Item Name"],
               "Brand": item.Brand || "Unknown Brand",
               "Category": item.Category || "General",
               "Cost": item.Cost || "",
-              "Exos Part Number": item["Exos Part Number"] || "",
+              "EXOS Part Number": item["EXOS Part Number"] || "",
               "URL": item.URL || "",
               "Gym": gym,
               "quantity": item.quantity,
               "status": item.status,
-              "note": item.note || ""
-            };
-            console.log(`Added new item: ${item["Item Name"]} with quantity: ${item.quantity}`);
+              "note": item.note || "",
+              "justification": item.justification || "",
+              "notes": item.notes || ""
+            });
           }
         });
         
         // Add grouped items to the list
-        Object.values(groupedItems).forEach(item => {
+        groupedItems.forEach(item => {
           allItems.push({
             "Item Name": item["Item Name"],
             "Brand": item.Brand,
             "Category": item.Category,
             "Cost": item.Cost,
-            "Exos Part Number": item["Exos Part Number"],
+                          "EXOS Part Number": item["EXOS Part Number"],
             "URL": item.URL,
             "Gym": item.Gym,
             "Quantity": item.quantity,
             "Status": item.status,
-            "Note": item.note
+            "Note": item.note,
+            "Justification": item.justification,
+            "Notes": item.notes
           });
         });
       });
 
       console.log('Prepared', allItems.length, 'items to save');
-      console.log('Items to save:', allItems);
 
-      // STEP 4: Add new data (or empty indicator if no items)
-      console.log('Step 4: Adding new data...');
-      if (allItems.length === 0) {
-        console.log('No items to save - adding empty indicator');
-        const emptyResponse = await fetchWithRetry(`${GYM_ITEMS_API_URL}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            data: [{
-              "Item Name": "EMPTY_SHEET",
-              "Brand": "",
-              "Category": "",
-              "Cost": "",
-              "Exos Part Number": "",
-              "URL": "",
-              "Gym": "",
-              "Quantity": "",
-              "Status": "",
-              "Note": ""
-            }]
-          })
-        }, 3, true);
+      // Save to Firebase
+      console.log('Saving to Firebase...');
+          await firebaseService.batchUpdateGymItems(allItems);
+          console.log('Successfully saved to Firebase');
+      
+        // Remove 0 quantity items from local state after successful save
+        setGymItems(prev => {
+          const cleanedGymItems = {};
+          Object.entries(prev).forEach(([gym, items]) => {
+            const nonZeroItems = items.filter(item => item.quantity > 0);
+            if (nonZeroItems.length > 0) {
+              cleanedGymItems[gym] = nonZeroItems;
+            }
+          });
+          return cleanedGymItems;
+        });
         
-        if (emptyResponse.ok) {
-          console.log('Empty sheet indicator added');
-          // Clear local state since sheet is now empty
-          setGymItems({});
-          console.log('Cleared local state - sheet is now empty');
-          showFireCursor();
-          return;
-        }
-      }
-
-      const response = await fetchWithRetry(`${GYM_ITEMS_API_URL}?sheet=${encodeURIComponent(SHEETDB_TAB_NAME)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: allItems })
-      }, 3, true);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Save response error:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorText: errorText
-        });
-        throw new Error(`Failed to add new data: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log('Save response result:', result);
-      console.log('Successfully added', allItems.length, 'new items');
-      
-      // Remove 0 quantity items from local state after successful save
-      setGymItems(prev => {
-        console.log('Before cleanup - current state:', prev);
-        const cleanedGymItems = {};
-        Object.entries(prev).forEach(([gym, items]) => {
-          console.log(`Processing gym ${gym} with ${items.length} items`);
-          const nonZeroItems = items.filter(item => item.quantity > 0);
-          console.log(`Found ${nonZeroItems.length} non-zero items in ${gym}`);
-          if (nonZeroItems.length > 0) {
-            cleanedGymItems[gym] = nonZeroItems;
-          }
-        });
-        console.log('After cleanup - new state:', cleanedGymItems);
-        return cleanedGymItems;
-      });
-      
-      // Show fire emoji cursor effect
-      showFireCursor();
-      
-      console.log('Two-step save completed successfully!');
+        // Show fire emoji cursor effect
+        showFireCursor();
+        console.log('Save completed successfully!');
     } catch (err) {
       console.error('Failed to save gym items:', err);
-      
-      // Check if it's a rate limit error
-      if (err.isRateLimit || err.message.includes('rate limit') || err.message.includes('429')) {
-        showNotification('SheetDB rate limit reached. The app will automatically retry. If this persists, you may need to create a new API endpoint.', 'rate-limit');
-      } else {
         showNotification('Failed to save gym items. Please try again.', 'error');
-      }
     } finally {
       hideLoadingCursor();
       setIsSaving(false);
     }
   };
+
+
 
   // Fire emoji cursor effect for save success
   const showFireCursor = () => {
@@ -1181,20 +999,352 @@ function App() {
     document.body.style.cursor = '';
   };
 
+
+
+  // Edit mode functions
+  const handleEditModeToggle = () => {
+    setIsEditMode(!isEditMode);
+  };
+
+  // Function to update Google Sheets with product changes
+  const updateGoogleSheets = async (partNumber, updates) => {
+    try {
+      console.log('Updating Google Sheets with product changes...');
+      console.log('Part Number:', partNumber);
+      console.log('Updates:', updates);
+      
+      // Find the original product to get all fields - use correct field name
+      const originalProduct = products.find(p => p["EXOS Part Number"] === partNumber);
+      if (!originalProduct) {
+        console.log('Product not found for Google Sheets update');
+        return;
+      }
+      
+      console.log('Original product:', originalProduct);
+      
+      // Prepare the updated product data for Google Sheets
+      const updatedProduct = {
+        ...originalProduct,
+        ...updates
+      };
+      
+      console.log('Updated product for Google Sheets:', updatedProduct);
+      
+      // Send update to Google Apps Script
+      const response = await fetch(CATALOG_UPDATE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          action: 'updateItem',
+          partNumber: partNumber,
+          data: JSON.stringify(updatedProduct)
+        }).toString()
+      });
+      
+      if (response.ok) {
+        const responseData = await response.text();
+        console.log('Google Sheets response:', responseData);
+        try {
+          const parsedResponse = JSON.parse(responseData);
+          console.log('Parsed Google Sheets response:', parsedResponse);
+          showNotification('Google Sheets also updated successfully!', 'success');
+        } catch (parseError) {
+          console.log('Raw Google Sheets response (not JSON):', responseData);
+          showNotification('Google Sheets updated, but response was not JSON', 'warning');
+        }
+      } else {
+        console.warn('Failed to update Google Sheets:', response.status);
+        showNotification('Firebase updated, but Google Sheets update failed', 'warning');
+      }
+    } catch (error) {
+      console.error('Error updating Google Sheets:', error);
+      // Don't throw error - Google Sheets update is secondary
+    }
+  };
+
+  const handleProductUpdate = async (productId, updates) => {
+
+    try {
+      // Check if the product exists in Firebase by trying to get it first
+      const existingProduct = products.find(p => p.id === productId || p["EXOS Part Number"] === productId);
+      
+      if (existingProduct && existingProduct.id) {
+        // Product exists in Firebase, update it
+        await firebaseService.updateCatalogItem(existingProduct.id, updates);
+        
+        // Update local state with the changes
+        setProducts(prevProducts => 
+          prevProducts.map(product => 
+            product.id === existingProduct.id
+              ? { ...product, ...updates }
+              : product
+          )
+        );
+      } else {
+        // Product doesn't exist in Firebase, create it
+        const newProduct = {
+          ...updates,
+          "EXOS Part Number": productId // Use the part number as identifier
+        };
+        const newId = await firebaseService.addCatalogItem(newProduct);
+        
+        // Add the new product to local state with Firebase ID
+        const newProductWithId = { ...newProduct, id: newId };
+        setProducts(prevProducts => [...prevProducts, newProductWithId]);
+      }
+      
+      // Update localStorage to persist changes
+      const updatedProducts = products.map(product => 
+        (product.id === productId || product["EXOS Part Number"] === productId) 
+          ? { ...product, ...updates }
+          : product
+      );
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedProducts));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_timestamp`, Date.now().toString());
+      
+      // Update Google Sheets (non-blocking - don't wait for this to complete)
+      // Use the actual part number instead of Firebase ID
+      const partNumber = existingProduct ? existingProduct["EXOS Part Number"] : productId;
+      updateGoogleSheets(partNumber, updates);
+      
+      showNotification('Product updated in Firebase!', 'success');
+    } catch (error) {
+      console.error('Error updating product:', error);
+      showNotification('Failed to update product', 'error');
+    }
+  };
+
+  const handleGoogleSheetsLink = () => {
+    // Open Google Sheets in new tab
+    window.open(SHEETS_URL, '_blank');
+  };
+
+  const syncFromGoogleSheets = async () => {
+    try {
+      // Check if sync is already in progress
+      if (isSyncInProgress) {
+        showNotification('Sync already in progress. Please wait for it to complete.', 'warning');
+        return;
+      }
+
+      // Set sync in progress flag
+      localStorage.setItem('syncInProgress', 'true');
+      localStorage.setItem('syncStartTime', Date.now().toString());
+      setIsSyncInProgress(true);
+      
+      showNotification('Fetching data from Google Sheets...', 'info');
+      
+      // Fetch all data from Google Sheets
+      const response = await fetch(`${CATALOG_IMPORT_URL}?action=getCatalog`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch from Google Sheets: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Google Sheets response:', data);
+      
+      if (!data.success) {
+        throw new Error(`Google Sheets error: ${data.message || 'Unknown error'}`);
+      }
+      
+      if (!data.items) {
+        throw new Error('Google Sheets response missing items array. The script may need to be updated to handle getCatalog action.');
+      }
+      
+      console.log(`Fetched ${data.items.length} items from Google Sheets`);
+      
+      // Store sheets data and show approval modal
+      setSheetsData(data.items);
+      setShowSyncApproval(true);
+      
+      // Clear sync in progress flag
+      localStorage.removeItem('syncInProgress');
+      localStorage.removeItem('syncStartTime');
+      setIsSyncInProgress(false);
+      
+    } catch (error) {
+      console.error('Sync failed:', error);
+      
+      // Clear sync in progress flag on error
+      localStorage.removeItem('syncInProgress');
+      localStorage.removeItem('syncStartTime');
+      setIsSyncInProgress(false);
+      
+      showNotification(`Sync failed: ${error.message}`, 'error');
+    }
+  };
+
+  const handleSyncApproval = async (approvedChanges) => {
+    try {
+      setIsSyncInProgress(true);
+      showNotification('Applying approved changes...', 'info');
+      
+      // Apply only the approved changes
+      const syncResult = await firebaseService.applyApprovedChanges(approvedChanges, sheetsData);
+      
+      // Fetch updated items from Firebase
+      const updatedItems = await firebaseService.getCatalogItems();
+      
+      // Update local state
+      setProducts(updatedItems);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedItems));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_timestamp`, Date.now().toString());
+      
+      setIsSyncInProgress(false);
+      
+      // Show detailed sync results
+      const message = `Sync completed! ${syncResult.added} added, ${syncResult.updated} updated, ${syncResult.deleted} deleted`;
+      showNotification(message, 'success');
+      console.log(`Sync completed:`, syncResult);
+      
+    } catch (error) {
+      console.error('Error applying approved changes:', error);
+      setIsSyncInProgress(false);
+      showNotification(`Error applying changes: ${error.message}`, 'error');
+    }
+  };
+
+  // Function to clean up specific duplicates
+  const cleanupSpecificDuplicates = async () => {
+    try {
+      showLoadingCursor();
+      
+      // Get current products
+      const currentProducts = [...products];
+      const productsToDelete = [];
+      const productsToKeep = [];
+      
+      // Group products by normalized part number
+      const groupedByPartNumber = {};
+      currentProducts.forEach(product => {
+        const partNumber = product["EXOS Part Number"];
+        if (partNumber) {
+          const normalizedPartNumber = partNumber.trim().toUpperCase();
+          if (!groupedByPartNumber[normalizedPartNumber]) {
+            groupedByPartNumber[normalizedPartNumber] = [];
+          }
+          groupedByPartNumber[normalizedPartNumber].push(product);
+        }
+      });
+      
+      // Process each group of duplicates
+      Object.entries(groupedByPartNumber).forEach(([normalizedPartNumber, items]) => {
+        if (items.length > 1) {
+          console.log(`Processing duplicates for ${normalizedPartNumber}:`, items);
+          
+          // Sort items by priority: P+C > P > C > (empty)
+          const sortedItems = items.sort((a, b) => {
+            const aPref = (a.Preferred || "").toUpperCase().trim();
+            const bPref = (b.Preferred || "").toUpperCase().trim();
+            
+            const priority = { 'P+C': 4, 'P': 3, 'C': 1 };
+            return (priority[bPref] || 0) - (priority[aPref] || 0);
+          });
+          
+          // Keep the first (highest priority) item
+          const itemToKeep = sortedItems[0];
+          productsToKeep.push(itemToKeep);
+          
+          // Mark the rest for deletion
+          const itemsToDelete = sortedItems.slice(1);
+          productsToDelete.push(...itemsToDelete);
+          
+          console.log(`Keeping:`, itemToKeep);
+          console.log(`Deleting:`, itemsToDelete);
+        } else {
+          // Single item, keep it
+          productsToKeep.push(items[0]);
+        }
+      });
+      
+      if (productsToDelete.length === 0) {
+        hideLoadingCursor();
+        showNotification('No duplicates found to clean up!', 'success');
+        return;
+      }
+      
+      console.log(`Total items to delete: ${productsToDelete.length}`);
+      console.log(`Total items to keep: ${productsToKeep.length}`);
+      
+      // Delete duplicate items from Firebase
+      const deletePromises = productsToDelete.map(product => 
+        firebaseService.deleteCatalogItem(product.id)
+      );
+      
+      await Promise.all(deletePromises);
+      
+      // Update local state
+      setProducts(productsToKeep);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(productsToKeep));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_timestamp`, Date.now().toString());
+      
+      hideLoadingCursor();
+      
+      const message = `Cleanup completed! Removed ${productsToDelete.length} duplicate items.`;
+      showNotification(message, 'success');
+      console.log('Cleanup completed:', { deleted: productsToDelete.length, kept: productsToKeep.length });
+      
+      // Force a refresh of the catalog data to ensure sync has current data
+      setTimeout(() => {
+        const fetchCatalog = async () => {
+          try {
+            const firebaseItems = await firebaseService.getCatalogItems();
+            if (firebaseItems && firebaseItems.length > 0) {
+              const normalizedProducts = firebaseItems.map(item => ({
+                id: item.id,
+                "Item Name": item["Item Name"] || "",
+                "Brand": item["Brand"] || "",
+                "Category": item["Category"] || "",
+                "Cost": item["Cost"] || "",
+                "EXOS Part Number": item["EXOS Part Number"] || "",
+                "Preferred": item["Preferred"] || "",
+                "URL": item["URL"] || ""
+              }));
+              setProducts(normalizedProducts);
+              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(normalizedProducts));
+              localStorage.setItem(`${LOCAL_STORAGE_KEY}_timestamp`, Date.now().toString());
+            }
+          } catch (error) {
+            console.error('Error refreshing catalog after cleanup:', error);
+          }
+        };
+        fetchCatalog();
+      }, 1000); // Small delay to ensure Firebase operations are complete
+    } catch (error) {
+      console.error('Error cleaning up duplicates:', error);
+      hideLoadingCursor();
+      showNotification(`Error cleaning up duplicates: ${error.message}`, 'error');
+    }
+  };
+
+  // Effect to run cleanup when needed
+  useEffect(() => {
+    if (needsCleanup) {
+      // Add a guard to prevent infinite loops - only run cleanup once per session
+      const cleanupKey = 'cleanupCompleted';
+      const hasRunCleanup = sessionStorage.getItem(cleanupKey);
+      
+      if (!hasRunCleanup) {
+        console.log('Running duplicate cleanup...');
+        cleanupSpecificDuplicates();
+        sessionStorage.setItem(cleanupKey, 'true');
+      } else {
+        console.log('Cleanup already completed this session, skipping...');
+      }
+      
+      setNeedsCleanup(false); // Reset the flag after cleanup
+    }
+  }, [needsCleanup]);
+
+
   if (loading) {
-    console.log('Rendering loading state');
     return <LoadingState type="category" message="Loading products..." />;
   }
   
-  console.log('=== RENDER DEBUG ===');
-  console.log('Products length:', products?.length);
-  console.log('Loading state:', loading);
-  console.log('Visible products length:', visibleProducts?.length);
-  console.log('Filtered products length:', filteredProducts?.length);
-  
   if (!products?.length && !loading) {
-    console.log('No products found, showing mock data as fallback');
-    // Fallback to mock data if no products are loaded
+    // Show error state when no products are loaded
     return (
       <div className="App">
         {/* Custom Notification */}
@@ -1206,9 +1356,11 @@ function App() {
               top: '70px',
               left: '50%',
               transform: 'translateX(-50%)',
-              background: notification.type === 'rate-limit' 
-                ? 'linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)'
-                : 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+              background: notification.type === 'success'
+                ? 'linear-gradient(135deg, #28a745 0%, #218838 100%)'
+                : notification.type === 'rate-limit'
+                  ? 'linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)'
+                  : 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
               color: 'white',
               padding: '12px 20px',
               borderRadius: '8px',
@@ -1226,12 +1378,12 @@ function App() {
             onMouseLeave={(e) => e.target.style.transform = 'translateX(-50%) scale(1)'}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span role="img" aria-label="warning">
-                {notification.type === 'rate-limit' ? '⚠️' : '❌'}
+              <span role="img" aria-label="notification">
+                {notification.type === 'success' ? '✅' : notification.type === 'rate-limit' ? '⚠️' : '❌'}
               </span>
               <div>
                 <strong>
-                  {notification.type === 'rate-limit' ? 'SheetDB Rate Limit' : 'Error'}
+                  {notification.type === 'success' ? 'Success' : notification.type === 'rate-limit' ? 'SheetDB Rate Limit' : 'Error'}
                 </strong>
                 <div style={{ fontSize: '12px', marginTop: '2px' }}>
                   {notification.message}
@@ -1240,8 +1392,6 @@ function App() {
             </div>
           </div>
         )}
-        
-
         
         <Navigation
           onSidebarToggle={() => setIsSidebarExpanded(!isSidebarExpanded)}
@@ -1255,11 +1405,17 @@ function App() {
           gyms={gyms}
           onTabChange={setActiveTab}
           onSidebarExpand={setIsSidebarExpanded}
+          onNotificationManagerToggle={() => setShowNotificationManager(true)}
+          isEditMode={isEditMode}
+          onEditModeToggle={handleEditModeToggle}
+          onGoogleSheetsLink={handleGoogleSheetsLink}
+          onSyncFromGoogleSheets={syncFromGoogleSheets}
+          isSyncInProgress={isSyncInProgress}
         />
         <div className="main-content" onClick={handleContentClick}>
           <Sidebar
-            categories={['Strength', 'Mobility', 'Recovery']}
-            brands={['PowerBlock', 'TheraBand', 'TriggerPoint', 'Rogue', 'Manduka']}
+            categories={categories}
+            brands={brands}
             selectedCategory={selectedCategory}
             selectedBrand={selectedBrand}
             searchTerm={searchTerm}
@@ -1276,7 +1432,8 @@ function App() {
             handleRemoveFromGym={handleRemoveFromGym}
             onQtyChange={handleQtyChange}
             onStatusChange={handleGymStatusChange}
-            onNoteSubmit={handleGymNoteSubmit}
+            onNoteSubmit={handleGymNoteChange}
+            onJustificationChange={handleJustificationChange}
             saveGymItems={saveGymItems}
             isSaving={isSaving}
             // Tab control
@@ -1285,23 +1442,59 @@ function App() {
           />
           <div className={`content-area ${isSidebarExpanded ? 'sidebar-expanded' : ''}`}>
             <div className="products-container">
-              <Suspense fallback={<LoadingState type="products" />}>
-                {mockData.map((product, index) => (
-                  <ProductCard
-                    key={`${product["Exos Part Number"]}-${index}`}
-                    product={product}
-                    onCopyInfo={copyProductInfo}
-                    copySuccess={copySuccess}
-                    onAddToGym={handleAddToGym}
-                    itemStatuses={itemStatuses}
-                    onStatusChange={handleStatusChange}
-                    statusNotes={statusNotes}
-                    onNoteSubmit={handleNoteSubmit}
-                    activeGym={activeGym}
-                    gyms={gyms}
-                  />
-                ))}
-              </Suspense>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '400px',
+                textAlign: 'center',
+                padding: '40px 20px'
+              }}>
+                <div style={{ fontSize: '64px', marginBottom: '20px' }}>📋</div>
+                <h2 style={{ 
+                  color: '#666', 
+                  marginBottom: '16px',
+                  fontSize: '24px',
+                  fontWeight: '500'
+                }}>
+                  No Equipment Found
+                </h2>
+                <p style={{ 
+                  color: '#888', 
+                  marginBottom: '24px',
+                  fontSize: '16px',
+                  maxWidth: '400px',
+                  lineHeight: '1.5'
+                }}>
+                  Unable to load the equipment catalog. This could be due to a connection issue or the catalog being empty.
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  style={{
+                    background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 8px rgba(0, 123, 255, 0.3)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 4px 12px rgba(0, 123, 255, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 2px 8px rgba(0, 123, 255, 0.3)';
+                  }}
+                >
+                  🔄 Try Again
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1311,6 +1504,7 @@ function App() {
 
   return (
     <div className="App">
+      
       {/* Custom Notification */}
       {notification && (
         <div 
@@ -1320,9 +1514,11 @@ function App() {
             top: '70px',
             left: '50%',
             transform: 'translateX(-50%)',
-            background: notification.type === 'rate-limit' 
-              ? 'linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)'
-              : 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+            background: notification.type === 'success'
+              ? 'linear-gradient(135deg, #28a745 0%, #218838 100%)'
+              : notification.type === 'rate-limit'
+                ? 'linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)'
+                : 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
             color: 'white',
             padding: '12px 20px',
             borderRadius: '8px',
@@ -1340,12 +1536,12 @@ function App() {
           onMouseLeave={(e) => e.target.style.transform = 'translateX(-50%) scale(1)'}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span role="img" aria-label="warning">
-              {notification.type === 'rate-limit' ? '⚠️' : '❌'}
+            <span role="img" aria-label="notification">
+              {notification.type === 'success' ? '✅' : notification.type === 'rate-limit' ? '⚠️' : '❌'}
             </span>
             <div>
               <strong>
-                {notification.type === 'rate-limit' ? 'SheetDB Rate Limit' : 'Error'}
+                {notification.type === 'success' ? 'Success' : notification.type === 'rate-limit' ? 'SheetDB Rate Limit' : 'Error'}
               </strong>
               <div style={{ fontSize: '12px', marginTop: '2px' }}>
                 {notification.message}
@@ -1355,19 +1551,25 @@ function App() {
         </div>
       )}
       
-              <Navigation
-          onSidebarToggle={() => setIsSidebarExpanded(!isSidebarExpanded)}
-          onReset={handleReset}
-          onSearchToggle={handleSearchToggle}
-          isSearchVisible={isSearchVisible}
-          searchTerm={searchTerm}
-          onSearchChange={handleSearch}
-          activeGym={activeGym}
-          onGymChange={setActiveGym}
-          gyms={gyms}
-          onTabChange={setActiveTab}
-          onSidebarExpand={setIsSidebarExpanded}
-        />
+      <Navigation
+        onSidebarToggle={() => setIsSidebarExpanded(!isSidebarExpanded)}
+        onReset={handleReset}
+        onSearchToggle={handleSearchToggle}
+        isSearchVisible={isSearchVisible}
+        searchTerm={searchTerm}
+        onSearchChange={handleSearch}
+        activeGym={activeGym}
+        onGymChange={setActiveGym}
+        gyms={gyms}
+        onTabChange={setActiveTab}
+        onSidebarExpand={setIsSidebarExpanded}
+        onNotificationManagerToggle={() => setShowNotificationManager(true)}
+          isEditMode={isEditMode}
+          onEditModeToggle={handleEditModeToggle}
+          onGoogleSheetsLink={handleGoogleSheetsLink}
+          onSyncFromGoogleSheets={syncFromGoogleSheets}
+          isSyncInProgress={isSyncInProgress}
+      />
       <div className="main-content" onClick={handleContentClick}>
         <Sidebar
           categories={categories}
@@ -1388,7 +1590,8 @@ function App() {
           handleRemoveFromGym={handleRemoveFromGym}
           onQtyChange={handleQtyChange}
           onStatusChange={handleGymStatusChange}
-          onNoteSubmit={handleGymNoteSubmit}
+          onNoteSubmit={handleGymNoteChange}
+          onJustificationChange={handleJustificationChange}
           saveGymItems={saveGymItems}
           isSaving={isSaving}
           // Tab control
@@ -1398,21 +1601,25 @@ function App() {
         <div className={`content-area ${isSidebarExpanded ? 'sidebar-expanded' : ''}`}>
           <div className="products-container">
             <Suspense fallback={<LoadingState type="products" />}>
-                              {visibleProducts.map((product, index) => (
-                  <ProductCard
-                    key={`${product["Exos Part Number"]}-${index}`}
-                    product={product}
-                    onCopyInfo={copyProductInfo}
-                    copySuccess={copySuccess}
-                    onAddToGym={handleAddToGym}
-                    itemStatuses={itemStatuses}
-                    onStatusChange={handleStatusChange}
-                    statusNotes={statusNotes}
-                    onNoteSubmit={handleNoteSubmit}
-                    activeGym={activeGym}
-                    gyms={gyms}
-                  />
-                ))}
+              {visibleProducts.map((product, index) => (
+                <ProductCard
+                  key={`${product["EXOS Part Number"]}-${index}`}
+                  product={product}
+                  onCopyInfo={copyProductInfo}
+                  copySuccess={copySuccess}
+                  onAddToGym={handleAddToGym}
+                  itemStatuses={itemStatuses}
+                  onStatusChange={handleStatusChange}
+                  statusNotes={statusNotes}
+                  onNoteSubmit={handleNoteSubmit}
+                  activeGym={activeGym}
+                  gyms={gyms}
+                  isEditMode={isEditMode}
+                  onProductUpdate={handleProductUpdate}
+                  onEditModeToggle={handleEditModeToggle}
+                  isSyncInProgress={isSyncInProgress}
+                />
+              ))}
             </Suspense>
             
             {/* Infinite scroll loading indicator */}
@@ -1438,7 +1645,6 @@ function App() {
             onMouseDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('Mouse down - starting scroll'); // Debug log
               
               // Add visual feedback
               const element = e.currentTarget;
@@ -1459,7 +1665,6 @@ function App() {
             onMouseUp={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('Mouse up - stopping scroll'); // Debug log
               
               // Remove visual feedback
               const element = e.currentTarget;
@@ -1502,6 +1707,87 @@ function App() {
       
       {/* Vercel Speed Insights */}
       <SpeedInsights />
+      
+      {/* Notification Manager */}
+      <NotificationManager 
+        isVisible={showNotificationManager}
+        onClose={() => setShowNotificationManager(false)}
+      />
+
+      {/* Sync Approval Modal */}
+      <SyncApprovalModal
+        isOpen={showSyncApproval}
+        onClose={() => setShowSyncApproval(false)}
+        onApprove={handleSyncApproval}
+        sheetsData={sheetsData}
+        currentData={products}
+      />
+
+      {/* Sync Overlay - Disables all interactions during sync */}
+      {isSyncInProgress && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'column',
+            color: 'white',
+            fontSize: '18px',
+            fontWeight: '500'
+          }}
+        >
+          <div 
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              padding: '40px',
+              borderRadius: '16px',
+              textAlign: 'center',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
+              maxWidth: '400px',
+              width: '90%'
+            }}
+          >
+            <div style={{ fontSize: '48px', marginBottom: '20px' }}>🔄</div>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '24px' }}>Syncing Data</h2>
+            <p style={{ margin: '0 0 24px 0', opacity: 0.9, lineHeight: '1.5' }}>
+              Please wait while we sync your equipment catalog from Google Sheets to Firebase.
+            </p>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '8px',
+              fontSize: '16px',
+              opacity: 0.8
+            }}>
+              <div style={{
+                width: '20px',
+                height: '20px',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                borderTop: '2px solid white',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+              <span>Processing...</span>
+            </div>
+            <p style={{ 
+              margin: '16px 0 0 0', 
+              fontSize: '14px', 
+              opacity: 0.7,
+              fontStyle: 'italic'
+            }}>
+              Do not refresh the page or close the browser during sync.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

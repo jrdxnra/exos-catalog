@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 
-const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible, searchTerm, onSearchChange, activeGym, onGymChange, gyms, onTabChange, onSidebarExpand }) => {
+const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible, searchTerm, onSearchChange, activeGym, onGymChange, gyms, onTabChange, onSidebarExpand, onNotificationManagerToggle, isEditMode, onEditModeToggle, onGoogleSheetsLink, onSyncFromGoogleSheets, isSyncInProgress }) => {
   const [isGymDropdownOpen, setIsGymDropdownOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -94,7 +94,7 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
       <div className="nav-container" style={{ padding: '0 60px', justifyContent: 'center' }}>
         <div className="nav-center" style={{ flex: 1, textAlign: 'center' }}>
           <button className="nav-title" onClick={handleReset}>
-            <h1>EXOs Equipment List</h1>
+            <h1>EXOS Equipment List</h1>
           </button>
         </div>
       </div>
@@ -322,6 +322,148 @@ const Navigation = ({ onSidebarToggle, onReset, onSearchToggle, isSearchVisible,
             <span role="img" aria-label="filter">🔍</span>
             <span>Filters</span>
           </button>
+          
+          <button
+            onClick={() => {
+              onGoogleSheetsLink();
+              setIsMenuOpen(false);
+            }}
+            style={{
+              width: '100%',
+              padding: '12px 12px',
+              background: 'transparent',
+              border: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: '#333',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              minHeight: '44px'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#f8f8f8';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = 'transparent';
+            }}
+          >
+            <span role="img" aria-label="sheets">📊</span>
+            <span>Google Sheets</span>
+          </button>
+          
+          {isEditMode && (
+            <button
+              onClick={() => {
+                onSyncFromGoogleSheets();
+                setIsMenuOpen(false);
+              }}
+              disabled={isSyncInProgress}
+              style={{
+                width: '100%',
+                padding: '12px 12px',
+                background: isSyncInProgress ? '#f0f0f0' : 'transparent',
+                border: 'none',
+                textAlign: 'left',
+                cursor: isSyncInProgress ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                color: isSyncInProgress ? '#999' : '#333',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                minHeight: '44px'
+              }}
+              onMouseEnter={(e) => {
+                if (!isSyncInProgress) {
+                  e.target.style.backgroundColor = '#f8f8f8';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isSyncInProgress) {
+                  e.target.style.backgroundColor = 'transparent';
+                }
+              }}
+            >
+              <span role="img" aria-label="sync">
+                {isSyncInProgress ? '⏳' : '🔄'}
+              </span>
+              <span>
+                {isSyncInProgress ? 'Syncing...' : 'Sync from Sheets'}
+              </span>
+            </button>
+          )}
+          
+
+          
+          <button
+            onClick={() => {
+              onEditModeToggle();
+              setIsMenuOpen(false);
+            }}
+            style={{
+              width: '100%',
+              padding: '12px 12px',
+              background: isEditMode ? '#e3f2fd' : 'transparent',
+              border: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: isEditMode ? '#1976d2' : '#333',
+              fontWeight: isEditMode ? '600' : '400',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              minHeight: '44px'
+            }}
+            onMouseEnter={(e) => {
+              if (!isEditMode) {
+                e.target.style.backgroundColor = '#f8f8f8';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isEditMode) {
+                e.target.style.backgroundColor = 'transparent';
+              }
+            }}
+          >
+            <span role="img" aria-label="edit">✏️</span>
+            <span>{isEditMode ? 'Exit Edit Mode' : 'Edit Mode'}</span>
+          </button>
+          
+          <button
+            onClick={() => {
+              onNotificationManagerToggle();
+              setIsMenuOpen(false);
+            }}
+            style={{
+              width: '100%',
+              padding: '12px 12px',
+              background: 'transparent',
+              border: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: '#333',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              minHeight: '44px'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#f8f8f8';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = 'transparent';
+            }}
+          >
+            <span role="img" aria-label="notifications">📧</span>
+            <span>Notifications</span>
+          </button>
         </div>
       )}
 
@@ -496,7 +638,13 @@ Navigation.propTypes = {
   onGymChange: PropTypes.func.isRequired,
   gyms: PropTypes.arrayOf(PropTypes.string).isRequired,
   onTabChange: PropTypes.func.isRequired,
-  onSidebarExpand: PropTypes.func.isRequired
+  onSidebarExpand: PropTypes.func.isRequired,
+  onNotificationManagerToggle: PropTypes.func.isRequired,
+  isEditMode: PropTypes.bool,
+  onEditModeToggle: PropTypes.func,
+  onGoogleSheetsLink: PropTypes.func,
+  onSyncFromGoogleSheets: PropTypes.func,
+  isSyncInProgress: PropTypes.bool
 };
 
 export default React.memo(Navigation); 
