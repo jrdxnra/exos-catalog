@@ -236,9 +236,6 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
               <div className="flex items-center space-x-4">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">Equipment Cart</h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {getTotalItems()} items
-                  </p>
                 </div>
                 
                 {/* Gym Selector */}
@@ -305,12 +302,12 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                     <div className="space-y-3">
                       {items.map((item) => (
                         <Card key={item.productId} className="overflow-hidden relative">
-                          {/* Trash Button - Absolute positioned but kept within container bounds */}
+                          {/* Trash Button - Absolute positioned in top right corner margin */}
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => removeItem(item.productId)}
-                            className="absolute top-2 right-2 text-red-600 hover:text-red-800 hover:bg-red-50 p-1 z-10"
+                            className="absolute -top-2 -right-2 text-red-600 hover:text-red-800 hover:bg-red-50 p-1 z-10"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
