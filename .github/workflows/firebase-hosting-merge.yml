@@ -23,6 +23,6 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EXOS_EQUIPMENT_LIST }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EXOS_SUPPLIES }}
           channelId: staging
-          projectId: exos-equipment-list
+          projectId: exos-supplies

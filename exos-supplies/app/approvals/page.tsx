@@ -245,7 +245,7 @@ export default function ApprovalsPage() {
       <div className="p-6">
         <div className="max-w-7xl mx-auto">
           {/* Tab Navigation */}
-          <div className="flex space-x-4 mb-6">
+          <div className="flex justify-center space-x-4 mb-6">
             <button
               onClick={() => setActiveTab('saved-carts')}
               className={`px-4 py-2 rounded-lg font-medium ${

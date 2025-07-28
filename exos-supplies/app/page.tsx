@@ -398,10 +398,6 @@ export default function HomePage() {
                       defaultValue="1"
                       className="w-10 px-1 py-1 border rounded text-center text-xs shrink-0"
                     />
-                    {/* Center: Gym */}
-                    <div className="flex-1 text-center">
-                      <span className="font-medium text-blue-600">{selectedGym}</span>
-                    </div>
                     {/* Right side: Status */}
                     <div className="flex justify-end flex-1">
                       <select 

@@ -230,42 +230,43 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b">
+          {/* Modal Header */}
+          <div className="flex items-center justify-between p-4 sm:p-6 border-b">
             <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Equipment Cart</h2>
-                </div>
-                
-                {/* Gym Selector - Right Justified */}
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium text-gray-600 hidden sm:inline">Gym:</span>
-                  <select
-                    value={gymId}
-                    onChange={(e) => {
-                      const newGymId = e.target.value as GymId;
-                      if (onGymChange) {
-                        onGymChange(newGymId);
-                      }
-                    }}
-                    className="px-3 py-2 border rounded-md text-sm bg-white"
-                  >
-                    {GYMS.map(gym => (
-                      <option key={gym} value={gym}>{gym}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <h2 className="text-2xl font-bold text-gray-900">Equipment Cart</h2>
             </div>
             
-            <Button variant="ghost" size="sm" onClick={onClose}>
+            {/* Gym Selector - Right Justified */}
+            <div className="flex items-center space-x-2 mr-6">
+              <span className="text-sm font-medium text-gray-600 hidden sm:inline">Gym:</span>
+              <select
+                value={gymId}
+                onChange={(e) => {
+                  const newGymId = e.target.value as GymId;
+                  if (onGymChange) {
+                    onGymChange(newGymId);
+                  }
+                }}
+                className="px-3 py-2 border rounded-md text-sm bg-white"
+              >
+                {GYMS.map(gym => (
+                  <option key={gym} value={gym}>{gym}</option>
+                ))}
+              </select>
+            </div>
+            
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onClose}
+              className="p-1 -mt-1 mr-[-0.5rem] text-gray-400 hover:text-gray-600"
+            >
               <X className="w-5 h-5" />
             </Button>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          {/* Modal Content */}
+          <div className="overflow-y-auto flex-1 p-4">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-center">
@@ -410,9 +411,9 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
 
           {/* Footer */}
           {cart?.items && cart.items.length > 0 && (
-            <div className="border-t p-6">
-              {/* Item Count and Total Price - Right Justified */}
-              <div className="flex flex-col items-end mb-4 space-y-1">
+            <div className="border-t p-4">
+              {/* Item Count and Total Price - Side by Side */}
+              <div className="flex justify-end items-center space-x-4 mb-4">
                 <div className="text-sm text-gray-600">
                   {getTotalItems()} items
                 </div>
