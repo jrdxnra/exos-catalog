@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: '18'
       - name: Install dependencies
-        run: cd exos-supplies && npm ci
+        run: cd exos-supplies && npm install
       - name: Build application
         run: cd exos-supplies && npm run build
       - name: Deploy to Firebase
