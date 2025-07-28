@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "build",
+    "public": "exos-supplies/out",
     "ignore": [
       "firebase.json",
       "**/.*",
