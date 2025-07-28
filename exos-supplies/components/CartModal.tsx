@@ -304,7 +304,17 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                     {/* Items in this status */}
                     <div className="space-y-3">
                       {items.map((item) => (
-                        <Card key={item.productId} className="overflow-hidden">
+                        <Card key={item.productId} className="overflow-hidden relative">
+                          {/* Trash Button - Absolute positioned at top right edge */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeItem(item.productId)}
+                            className="absolute top-0 right-0 text-red-600 hover:text-red-800 hover:bg-red-50 p-1 z-10"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                          
                           <CardContent className="p-4">
                             <div className="flex items-start justify-between">
                               {/* Item Info */}
@@ -339,18 +349,6 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                                     </p>
                                   </div>
                                 </div>
-                              </div>
-
-                              {/* Top Right: Trash Button */}
-                              <div className="ml-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeItem(item.productId)}
-                                  className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
                               </div>
                             </div>
 
