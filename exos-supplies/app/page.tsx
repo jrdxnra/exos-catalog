@@ -447,14 +447,14 @@ export default function HomePage() {
                     <Button
                       onClick={(e) => handleAddToCart(product, e)}
                       size="sm"
-                      className="flex-1 bg-blue-700 hover:bg-blue-800 text-white text-xs h-9"
+                      className="flex-1 bg-blue-700 hover:bg-blue-800 text-white text-xs h-8"
                     >
                       Add to Gym
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-xs border-blue-300 text-blue-700 hover:bg-blue-50 h-9"
+                      className="text-xs border-blue-300 text-blue-700 hover:bg-blue-50 h-8"
                       onClick={() => {
                         const copyText = `${product["Item Name"]}\t${product.Brand}\t${product.Category}\t${product["EXOS Part Number"]}\t${product.Cost}`;
                         navigator.clipboard.writeText(copyText);
