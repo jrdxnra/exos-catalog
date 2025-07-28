@@ -341,33 +341,47 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                                 </div>
                               </div>
 
-                              {/* Controls */}
-                              <div className="flex flex-col items-end space-y-2 sm:space-y-3 ml-2 sm:ml-4">
-                                {/* Quantity Controls */}
-                                <div className="flex items-center space-x-1 sm:space-x-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                                    disabled={item.quantity <= 1}
-                                    className="h-8 w-8 sm:h-9 sm:w-auto px-2 sm:px-3"
-                                  >
-                                    <Minus className="w-3 h-3 sm:w-4 sm:h-4" />
-                                  </Button>
-                                  <span className="text-base sm:text-lg font-semibold min-w-[2rem] sm:min-w-[3rem] text-center">
-                                    {item.quantity}
-                                  </span>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                                    className="h-8 w-8 sm:h-9 sm:w-auto px-2 sm:px-3"
-                                  >
-                                    <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
-                                  </Button>
-                                </div>
+                              {/* Top Right: Trash Button */}
+                              <div className="ml-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeItem(item.productId)}
+                                  className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
 
-                                {/* Status Selector */}
+                            {/* Controls Row */}
+                            <div className="flex items-center justify-between mt-3">
+                              {/* Left: Quantity Controls */}
+                              <div className="flex items-center space-x-1 sm:space-x-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                                  disabled={item.quantity <= 1}
+                                  className="h-8 w-8 sm:h-9 sm:w-auto px-2 sm:px-3"
+                                >
+                                  <Minus className="w-3 h-3 sm:w-4 sm:h-4" />
+                                </Button>
+                                <span className="text-base sm:text-lg font-semibold min-w-[2rem] sm:min-w-[3rem] text-center">
+                                  {item.quantity}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                                  className="h-8 w-8 sm:h-9 sm:w-auto px-2 sm:px-3"
+                                >
+                                  <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
+                                </Button>
+                              </div>
+
+                              {/* Right: Status and Price */}
+                              <div className="flex items-center space-x-2 sm:space-x-3">
                                 <select
                                   value={item.status}
                                   onChange={(e) => updateStatus(item.productId, e.target.value)}
@@ -385,23 +399,10 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                                   <option value="Not Approved">Rejected</option>
                                 </select>
 
-                                {/* Remove Button */}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => removeItem(item.productId)}
-                                  className="text-red-600 hover:text-red-800 hover:bg-red-50 h-8 w-8 sm:h-9 sm:w-auto px-2 sm:px-3"
-                                >
-                                  <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                                </Button>
+                                <p className="text-lg font-bold text-blue-800">
+                                  ${typeof item.product.Cost === 'string' ? item.product.Cost.replace(/[$]/g, '') : item.product.Cost || '0'}
+                                </p>
                               </div>
-                            </div>
-
-                            {/* Price at bottom right */}
-                            <div className="flex justify-end mt-3">
-                              <p className="text-lg font-bold text-blue-800">
-                                ${typeof item.product.Cost === 'string' ? item.product.Cost.replace(/[$]/g, '') : item.product.Cost || '0'}
-                              </p>
                             </div>
                           </CardContent>
                         </Card>
@@ -424,9 +425,6 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
               </div>
               
               <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  {getTotalItems()} items
-                </div>
                 
                 <div className="flex space-x-2">
                   <Button
