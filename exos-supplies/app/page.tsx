@@ -343,8 +343,8 @@ export default function HomePage() {
                       </a>
                     ) : (
                       <h3 className="font-semibold text-sm sm:text-base text-gray-900 line-clamp-2 leading-tight">
-                        {product["Item Name"]}
-                      </h3>
+                      {product["Item Name"]}
+                    </h3>
                     )}
                     
                     {/* Preferred Badge */}
@@ -389,26 +389,23 @@ export default function HomePage() {
                     </div>
                   </div>
                   
-                  {/* Cart Controls - Single Line */}
-                  <div className="flex items-center justify-between gap-1 sm:gap-2 text-xs">
-                    {/* Left side: Qty and Gym */}
-                    <div className="flex items-center gap-1 sm:gap-2">
-                      <span className="font-medium w-8 sm:w-12 hidden sm:inline">Qty:</span>
-                      <input 
-                        type="number" 
-                        min="1" 
-                        defaultValue="1"
-                        className="w-8 sm:w-12 px-1 sm:px-2 py-1 border rounded text-center text-xs"
-                      />
-                      <span className="font-medium hidden sm:inline">Gym:</span>
+                  {/* Cart Controls */}
+                  <div className="flex items-center gap-2 text-xs">
+                    {/* Left side: Quantity */}
+                    <input 
+                      type="number" 
+                      min="1" 
+                      defaultValue="1"
+                      className="w-10 px-1 py-1 border rounded text-center text-xs shrink-0"
+                    />
+                    {/* Center: Gym */}
+                    <div className="flex-1 text-center">
                       <span className="font-medium text-blue-600">{selectedGym}</span>
                     </div>
-                    
                     {/* Right side: Status */}
-                    <div className="flex items-center gap-1 sm:gap-2">
-                      <span className="font-medium w-8 sm:w-12 hidden sm:inline">Status:</span>
+                    <div className="flex justify-end flex-1">
                       <select 
-                        className="w-20 sm:w-24 px-1 sm:px-2 py-1 border rounded text-xs status-select"
+                        className="w-24 px-1 py-1 border rounded text-xs status-select"
                         defaultValue="Pending Approval"
                         onChange={(e) => {
                           const target = e.target;
@@ -439,7 +436,6 @@ export default function HomePage() {
                           color: '#004085'
                         }}
                       >
-                        <option value="">Status</option>
                         <option value="Hold" style={{backgroundColor: '#fff3cd', color: '#856404'}}>Hold</option>
                         <option value="Waitlist" style={{backgroundColor: '#f8f9fa', color: '#6c757d'}}>Waitlist</option>
                         <option value="Pending Approval" style={{backgroundColor: '#cce7ff', color: '#004085'}}>Pending Approval</option>
@@ -449,19 +445,19 @@ export default function HomePage() {
                     </div>
                   </div>
                  
-                  {/* Action Buttons - Stacked on mobile, side by side on desktop */}
-                  <div className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-2">
+                  {/* Action Buttons - Split space evenly on small/medium, side by side on large */}
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       onClick={(e) => handleAddToCart(product, e)}
                       size="sm"
-                      className="bg-blue-700 hover:bg-blue-800 text-white text-xs h-8 px-3"
+                      className="bg-blue-700 hover:bg-blue-800 text-white text-xs h-8 w-full"
                     >
                       Add to Gym
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-xs border-blue-300 text-blue-700 hover:bg-blue-50 h-8 px-3"
+                      className="text-xs border-blue-300 text-blue-700 hover:bg-blue-50 h-8 w-full"
                       onClick={() => {
                         const copyText = `${product["Item Name"]}\t${product.Brand}\t${product.Category}\t${product["EXOS Part Number"]}\t${product.Cost}`;
                         navigator.clipboard.writeText(copyText);
