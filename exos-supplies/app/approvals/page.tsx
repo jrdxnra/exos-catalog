@@ -184,10 +184,9 @@ export default function ApprovalsPage() {
   };
 
   // Calculate stats for current tab
-  const currentItems = activeTab === 'saved-carts' ? savedCarts : approvalItems;
-  const totalItems = currentItems.length;
   const savedCartsCount = savedCarts.length;
   const submittedItemsCount = approvalItems.length;
+  const totalItems = savedCartsCount + submittedItemsCount;
 
   if (loading) {
     return (
@@ -271,88 +270,7 @@ export default function ApprovalsPage() {
             </button>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
-            <Card>
-              <CardContent className="p-2 sm:p-4">
-                <div className="flex flex-col sm:flex-row items-center text-center sm:text-left">
-                  <Package className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-600 mb-1 sm:mb-0 sm:mr-3" />
-                  <div>
-                    <p className="text-xs font-medium text-gray-600">Saved Carts</p>
-                    <p className="text-sm sm:text-lg font-bold text-gray-900">{savedCartsCount}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-2 sm:p-4">
-                <div className="flex flex-col sm:flex-row items-center text-center sm:text-left">
-                  <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6 text-green-600 mb-1 sm:mb-0 sm:mr-3" />
-                  <div>
-                    <p className="text-xs font-medium text-gray-600">Submitted Items</p>
-                    <p className="text-sm sm:text-lg font-bold text-gray-900">{submittedItemsCount}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-2 sm:p-4">
-                <div className="flex flex-col sm:flex-row items-center text-center sm:text-left">
-                  <Package className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600 mb-1 sm:mb-0 sm:mr-3" />
-                  <div>
-                    <p className="text-xs font-medium text-gray-600">Total Items</p>
-                    <p className="text-sm sm:text-lg font-bold text-gray-900">{totalItems}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
 
-          {/* Filters */}
-          <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
-            <div className="flex flex-wrap gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Gym</label>
-                <select
-                  value={selectedGym}
-                  onChange={(e) => setSelectedGym(e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-2 bg-white"
-                >
-                  <option value="All">All Gyms</option>
-                  {GYMS.map(gym => (
-                    <option key={gym} value={gym}>{gym}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-2 bg-white"
-                >
-                  <option value="All">All Statuses</option>
-                  {activeTab === 'saved-carts' ? (
-                    <>
-                      <option value="Not Submitted">Not Submitted</option>
-                      <option value="Submitted">Submitted</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="Pending Approval">Pending Approval</option>
-                      <option value="Approved">Approved</option>
-                      <option value="Not Approved">Not Approved</option>
-                      <option value="Hold">Hold</option>
-                      <option value="Waitlist">Waitlist</option>
-                    </>
-                  )}
-                </select>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Items List */}
