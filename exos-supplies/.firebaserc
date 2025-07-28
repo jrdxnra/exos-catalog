@@ -1,0 +1,13 @@
+{
+  "projects": {
+    "default": "exos-supplies"
+  },
+  "targets": {
+    "exos-supplies": {
+      "hosting": {
+        "staging": ["exos-supplies"],
+        "production": ["exos-supplies"]
+      }
+    }
+  }
+} 
