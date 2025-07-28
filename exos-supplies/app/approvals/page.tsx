@@ -250,9 +250,6 @@ export default function ApprovalsPage() {
             
             {/* Center - Logo and Title */}
             <div className="flex items-center space-x-3 flex-1 justify-center">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-primary-foreground" />
-              </div>
               <div className="text-center">
                 <h1 className="text-xl font-bold">
                   <span className="hidden sm:inline">Equipment Approval Center</span>
