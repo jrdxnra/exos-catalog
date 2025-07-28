@@ -326,10 +326,10 @@ export default function HomePage() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {filteredProducts.map((product) => (
                               <Card key={product.id} className="product-card overflow-visible hover:shadow-lg transition-shadow bg-white border border-gray-200 relative">
-              <CardContent className="p-4">
-                <div className="space-y-3">
+              <CardContent className="p-2 sm:p-4">
+                <div className="space-y-2 sm:space-y-3">
                   {/* Item Image Placeholder */}
-                  <div className="w-full h-24 bg-gradient-to-br from-blue-50 to-blue-100 rounded-md flex items-center justify-center border border-blue-200">
+                  <div className="w-full h-20 sm:h-24 bg-gradient-to-br from-blue-50 to-blue-100 rounded-md flex items-center justify-center border border-blue-200">
                     <span className="text-blue-500 text-xs font-medium">Item Image</span>
                   </div>
                   
@@ -340,12 +340,12 @@ export default function HomePage() {
                         href={product.URL}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-semibold text-base text-blue-700 hover:text-blue-900 hover:underline line-clamp-2 leading-tight"
+                        className="font-semibold text-sm sm:text-base text-blue-700 hover:text-blue-900 hover:underline line-clamp-2 leading-tight"
                       >
                         {product["Item Name"]}
                       </a>
                     ) : (
-                      <h3 className="font-semibold text-base text-gray-900 line-clamp-2 leading-tight">
+                      <h3 className="font-semibold text-sm sm:text-base text-gray-900 line-clamp-2 leading-tight">
                         {product["Item Name"]}
                       </h3>
                     )}
@@ -374,7 +374,7 @@ export default function HomePage() {
                   
                   {/* Brand and Category - Side by Side */}
                   <div className="flex justify-between items-center">
-                    <div className="text-gray-600 font-medium text-sm">
+                    <div className="text-gray-600 font-medium text-xs sm:text-sm">
                       {product.Brand}
                     </div>
                     <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
@@ -387,73 +387,73 @@ export default function HomePage() {
                     <div className="text-xs text-gray-500 font-mono">
                       {product["EXOS Part Number"]}
                     </div>
-                                         <div className="text-lg font-bold text-blue-800">
-                       ${typeof product.Cost === 'string' ? product.Cost.replace(/[$]/g, '') : product.Cost || '0'}
-                     </div>
+                    <div className="text-base sm:text-lg font-bold text-blue-800">
+                      ${typeof product.Cost === 'string' ? product.Cost.replace(/[$]/g, '') : product.Cost || '0'}
+                    </div>
                   </div>
                   
-                                     {/* Cart Controls - Two Lines */}
-                   <div className="bg-gray-50 p-1 rounded border-t space-y-2 relative">
-                     {/* First Line: Qty and Gym */}
-                     <div className="flex items-center gap-2 text-xs">
-                       <span className="font-medium w-12">Qty:</span>
-                       <input 
-                         type="number" 
-                         min="1" 
-                         defaultValue="1"
-                         className="w-12 px-2 py-1 border rounded text-center text-xs"
-                       />
-                       <span className="font-medium">Gym:</span>
-                       <span className="font-medium text-blue-600">{selectedGym}</span>
-                     </div>
-                     
-                     {/* Second Line: Status */}
-                     <div className="flex items-center gap-2 text-xs">
-                       <span className="font-medium w-12">Status:</span>
-                       <select 
-                         className="flex-1 px-2 py-1 border rounded text-xs status-select max-w-full"
-                         defaultValue="Pending Approval"
-                         onChange={(e) => {
-                           const target = e.target;
-                           const status = target.value;
-                           // Apply dynamic styling based on selected status
-                           if (status === 'Hold') {
-                             target.style.backgroundColor = '#fff3cd';
-                             target.style.color = '#856404';
-                           } else if (status === 'Waitlist') {
-                             target.style.backgroundColor = '#f8f9fa';
-                             target.style.color = '#6c757d';
-                           } else if (status === 'Pending Approval') {
-                             target.style.backgroundColor = '#cce7ff';
-                             target.style.color = '#004085';
-                           } else if (status === 'Approved') {
-                             target.style.backgroundColor = '#d4edda';
-                             target.style.color = '#155724';
-                           } else if (status === 'Not Approved') {
-                             target.style.backgroundColor = '#f8d7da';
-                             target.style.color = '#721c24';
-                           } else {
-                             target.style.backgroundColor = '#ffffff';
-                             target.style.color = '#000000';
-                           }
-                         }}
-                         style={{
-                           backgroundColor: '#cce7ff',
-                           color: '#004085'
-                         }}
-                       >
-                         <option value="">Status</option>
-                         <option value="Hold" style={{backgroundColor: '#fff3cd', color: '#856404'}}>Hold</option>
-                         <option value="Waitlist" style={{backgroundColor: '#f8f9fa', color: '#6c757d'}}>Waitlist</option>
-                         <option value="Pending Approval" style={{backgroundColor: '#cce7ff', color: '#004085'}}>Pending Approval</option>
-                         <option value="Approved" style={{backgroundColor: '#d4edda', color: '#155724'}}>Approved</option>
-                         <option value="Not Approved" style={{backgroundColor: '#f8d7da', color: '#721c24'}}>Not Approved</option>
-                       </select>
-                     </div>
-                   </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex space-x-2">
+                  {/* Cart Controls - Two Lines */}
+                  <div className="bg-gray-50 p-1 rounded border-t space-y-1 sm:space-y-2 relative">
+                    {/* First Line: Qty and Gym */}
+                    <div className="flex items-center gap-1 sm:gap-2 text-xs">
+                      <span className="font-medium w-8 sm:w-12 hidden sm:inline">Qty:</span>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        defaultValue="1"
+                        className="w-8 sm:w-12 px-1 sm:px-2 py-1 border rounded text-center text-xs"
+                      />
+                      <span className="font-medium hidden sm:inline">Gym:</span>
+                      <span className="font-medium text-blue-600">{selectedGym}</span>
+                    </div>
+                    
+                    {/* Second Line: Status */}
+                    <div className="flex items-center gap-1 sm:gap-2 text-xs">
+                      <span className="font-medium w-8 sm:w-12 hidden sm:inline">Status:</span>
+                      <select 
+                        className="flex-1 px-1 sm:px-2 py-1 border rounded text-xs status-select max-w-full"
+                        defaultValue="Pending Approval"
+                        onChange={(e) => {
+                          const target = e.target;
+                          const status = target.value;
+                          // Apply dynamic styling based on selected status
+                          if (status === 'Hold') {
+                            target.style.backgroundColor = '#fff3cd';
+                            target.style.color = '#856404';
+                          } else if (status === 'Waitlist') {
+                            target.style.backgroundColor = '#f8f9fa';
+                            target.style.color = '#6c757d';
+                          } else if (status === 'Pending Approval') {
+                            target.style.backgroundColor = '#cce7ff';
+                            target.style.color = '#004085';
+                          } else if (status === 'Approved') {
+                            target.style.backgroundColor = '#d4edda';
+                            target.style.color = '#155724';
+                          } else if (status === 'Not Approved') {
+                            target.style.backgroundColor = '#f8d7da';
+                            target.style.color = '#721c24';
+                          } else {
+                            target.style.backgroundColor = '#ffffff';
+                            target.style.color = '#000000';
+                          }
+                        }}
+                        style={{
+                          backgroundColor: '#cce7ff',
+                          color: '#004085'
+                        }}
+                      >
+                        <option value="">Status</option>
+                        <option value="Hold" style={{backgroundColor: '#fff3cd', color: '#856404'}}>Hold</option>
+                        <option value="Waitlist" style={{backgroundColor: '#f8f9fa', color: '#6c757d'}}>Waitlist</option>
+                        <option value="Pending Approval" style={{backgroundColor: '#cce7ff', color: '#004085'}}>Pending Approval</option>
+                        <option value="Approved" style={{backgroundColor: '#d4edda', color: '#155724'}}>Approved</option>
+                        <option value="Not Approved" style={{backgroundColor: '#f8d7da', color: '#721c24'}}>Not Approved</option>
+                      </select>
+                    </div>
+                  </div>
+                 
+                  {/* Action Buttons - Stacked on mobile, side by side on desktop */}
+                  <div className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-2">
                     <Button
                       onClick={(e) => handleAddToCart(product, e)}
                       size="sm"
