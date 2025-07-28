@@ -305,12 +305,12 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                     <div className="space-y-3">
                       {items.map((item) => (
                         <Card key={item.productId} className="overflow-hidden relative">
-                          {/* Trash Button - Absolute positioned higher and more to the right */}
+                          {/* Trash Button - Absolute positioned but kept within container bounds */}
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => removeItem(item.productId)}
-                            className="absolute -top-2 -right-2 text-red-600 hover:text-red-800 hover:bg-red-50 p-1 z-10"
+                            className="absolute top-2 right-2 text-red-600 hover:text-red-800 hover:bg-red-50 p-1 z-10"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -371,35 +371,34 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                                   <option value="Not Approved">Rejected</option>
                                 </select>
 
-                                {/* Quantity Controls and Price */}
-                                <div className="flex items-center space-x-2">
-                                  <div className="flex items-center space-x-1">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                                      disabled={item.quantity <= 1}
-                                      className="h-6 w-6 p-0"
-                                    >
-                                      <Minus className="w-3 h-3" />
-                                    </Button>
-                                    <span className="text-sm font-semibold min-w-[1.5rem] text-center">
-                                      {item.quantity}
-                                    </span>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                                      className="h-6 w-6 p-0"
-                                    >
-                                      <Plus className="w-3 h-3" />
-                                    </Button>
-                                  </div>
-                                  
-                                  <p className="text-sm font-bold text-blue-800">
-                                    ${typeof item.product.Cost === 'string' ? item.product.Cost.replace(/[$]/g, '') : item.product.Cost || '0'}
-                                  </p>
+                                {/* Quantity Controls */}
+                                <div className="flex items-center space-x-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                                    disabled={item.quantity <= 1}
+                                    className="h-6 w-6 p-0"
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </Button>
+                                  <span className="text-sm font-semibold min-w-[1.5rem] text-center">
+                                    {item.quantity}
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                                    className="h-6 w-6 p-0"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </Button>
                                 </div>
+                                
+                                {/* Price - Under quantity controls */}
+                                <p className="text-sm font-bold text-blue-800">
+                                  ${typeof item.product.Cost === 'string' ? item.product.Cost.replace(/[$]/g, '') : item.product.Cost || '0'}
+                                </p>
                               </div>
                             </div>
                           </CardContent>
