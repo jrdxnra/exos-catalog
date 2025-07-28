@@ -237,7 +237,7 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">Equipment Cart</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    {getTotalItems()} items • Total: ${getTotalCost().toFixed(2)}
+                    {getTotalItems()} items
                   </p>
                 </div>
                 
@@ -337,9 +337,6 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                                     <p className="text-sm text-gray-500">
                                       Part: {item.product["EXOS Part Number"]}
                                     </p>
-                                    <p className="text-lg font-bold text-blue-800 mt-1">
-                                      ${typeof item.product.Cost === 'string' ? item.product.Cost.replace(/[$]/g, '') : item.product.Cost || '0'}
-                                    </p>
                                   </div>
                                 </div>
                               </div>
@@ -400,7 +397,12 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                               </div>
                             </div>
 
-
+                            {/* Price at bottom right */}
+                            <div className="flex justify-end mt-3">
+                              <p className="text-lg font-bold text-blue-800">
+                                ${typeof item.product.Cost === 'string' ? item.product.Cost.replace(/[$]/g, '') : item.product.Cost || '0'}
+                              </p>
+                            </div>
                           </CardContent>
                         </Card>
                       ))}
@@ -414,9 +416,16 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
           {/* Footer */}
           {cart?.items && cart.items.length > 0 && (
             <div className="border-t p-6">
+              {/* Total Price - Right Justified */}
+              <div className="flex justify-end mb-4">
+                <div className="text-lg font-bold text-gray-900">
+                  Total: ${getTotalCost().toFixed(2)}
+                </div>
+              </div>
+              
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-600">
-                  {getTotalItems()} items • Total: ${getTotalCost().toFixed(2)}
+                  {getTotalItems()} items
                 </div>
                 
                 <div className="flex space-x-2">
