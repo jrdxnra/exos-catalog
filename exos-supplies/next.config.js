@@ -1,14 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove static export for development
-  // output: 'export',
-  // trailingSlash: true,
-  
-  // Development optimizations
-  swcMinify: true,
-  experimental: {
-    optimizeCss: true,
-  },
+  // Static export for Firebase hosting
+  output: 'export',
+  trailingSlash: true,
   
   // Optimize images
   images: {
@@ -34,15 +28,6 @@ const nextConfig = {
         os: false,
         path: false,
       };
-    }
-    
-    // Development optimizations
-    if (dev) {
-      // Disable source maps in development for faster compilation
-      config.devtool = 'eval';
-      
-      // Optimize module resolution
-      config.resolve.modules = ['node_modules'];
     }
     
     return config;
