@@ -390,56 +390,63 @@ export default function HomePage() {
                   </div>
                   
                   {/* Cart Controls - Single Line */}
-                  <div className="flex items-center gap-1 sm:gap-2 text-xs">
-                    <span className="font-medium w-8 sm:w-12 hidden sm:inline">Qty:</span>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      defaultValue="1"
-                      className="w-8 sm:w-12 px-1 sm:px-2 py-1 border rounded text-center text-xs"
-                    />
-                    <span className="font-medium hidden sm:inline">Gym:</span>
-                    <span className="font-medium text-blue-600">{selectedGym}</span>
-                    <span className="font-medium w-8 sm:w-12 hidden sm:inline">Status:</span>
-                    <select 
-                      className="w-20 sm:w-24 px-1 sm:px-2 py-1 border rounded text-xs status-select"
-                      defaultValue="Pending Approval"
-                      onChange={(e) => {
-                        const target = e.target;
-                        const status = target.value;
-                        // Apply dynamic styling based on selected status
-                        if (status === 'Hold') {
-                          target.style.backgroundColor = '#fff3cd';
-                          target.style.color = '#856404';
-                        } else if (status === 'Waitlist') {
-                          target.style.backgroundColor = '#f8f9fa';
-                          target.style.color = '#6c757d';
-                        } else if (status === 'Pending Approval') {
-                          target.style.backgroundColor = '#cce7ff';
-                          target.style.color = '#004085';
-                        } else if (status === 'Approved') {
-                          target.style.backgroundColor = '#d4edda';
-                          target.style.color = '#155724';
-                        } else if (status === 'Not Approved') {
-                          target.style.backgroundColor = '#f8d7da';
-                          target.style.color = '#721c24';
-                        } else {
-                          target.style.backgroundColor = '#ffffff';
-                          target.style.color = '#000000';
-                        }
-                      }}
-                      style={{
-                        backgroundColor: '#cce7ff',
-                        color: '#004085'
-                      }}
-                    >
-                      <option value="">Status</option>
-                      <option value="Hold" style={{backgroundColor: '#fff3cd', color: '#856404'}}>Hold</option>
-                      <option value="Waitlist" style={{backgroundColor: '#f8f9fa', color: '#6c757d'}}>Waitlist</option>
-                      <option value="Pending Approval" style={{backgroundColor: '#cce7ff', color: '#004085'}}>Pending Approval</option>
-                      <option value="Approved" style={{backgroundColor: '#d4edda', color: '#155724'}}>Approved</option>
-                      <option value="Not Approved" style={{backgroundColor: '#f8d7da', color: '#721c24'}}>Not Approved</option>
-                    </select>
+                  <div className="flex items-center justify-between gap-1 sm:gap-2 text-xs">
+                    {/* Left side: Qty and Gym */}
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <span className="font-medium w-8 sm:w-12 hidden sm:inline">Qty:</span>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        defaultValue="1"
+                        className="w-8 sm:w-12 px-1 sm:px-2 py-1 border rounded text-center text-xs"
+                      />
+                      <span className="font-medium hidden sm:inline">Gym:</span>
+                      <span className="font-medium text-blue-600">{selectedGym}</span>
+                    </div>
+                    
+                    {/* Right side: Status */}
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <span className="font-medium w-8 sm:w-12 hidden sm:inline">Status:</span>
+                      <select 
+                        className="w-20 sm:w-24 px-1 sm:px-2 py-1 border rounded text-xs status-select"
+                        defaultValue="Pending Approval"
+                        onChange={(e) => {
+                          const target = e.target;
+                          const status = target.value;
+                          // Apply dynamic styling based on selected status
+                          if (status === 'Hold') {
+                            target.style.backgroundColor = '#fff3cd';
+                            target.style.color = '#856404';
+                          } else if (status === 'Waitlist') {
+                            target.style.backgroundColor = '#f8f9fa';
+                            target.style.color = '#6c757d';
+                          } else if (status === 'Pending Approval') {
+                            target.style.backgroundColor = '#cce7ff';
+                            target.style.color = '#004085';
+                          } else if (status === 'Approved') {
+                            target.style.backgroundColor = '#d4edda';
+                            target.style.color = '#155724';
+                          } else if (status === 'Not Approved') {
+                            target.style.backgroundColor = '#f8d7da';
+                            target.style.color = '#721c24';
+                          } else {
+                            target.style.backgroundColor = '#ffffff';
+                            target.style.color = '#000000';
+                          }
+                        }}
+                        style={{
+                          backgroundColor: '#cce7ff',
+                          color: '#004085'
+                        }}
+                      >
+                        <option value="">Status</option>
+                        <option value="Hold" style={{backgroundColor: '#fff3cd', color: '#856404'}}>Hold</option>
+                        <option value="Waitlist" style={{backgroundColor: '#f8f9fa', color: '#6c757d'}}>Waitlist</option>
+                        <option value="Pending Approval" style={{backgroundColor: '#cce7ff', color: '#004085'}}>Pending Approval</option>
+                        <option value="Approved" style={{backgroundColor: '#d4edda', color: '#155724'}}>Approved</option>
+                        <option value="Not Approved" style={{backgroundColor: '#f8d7da', color: '#721c24'}}>Not Approved</option>
+                      </select>
+                    </div>
                   </div>
                  
                   {/* Action Buttons - Stacked on mobile, side by side on desktop */}
