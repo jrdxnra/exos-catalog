@@ -307,7 +307,7 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                             variant="ghost"
                             size="sm"
                             onClick={() => removeItem(item.productId)}
-                            className="absolute -top-2 -right-2 text-red-600 hover:text-red-800 hover:bg-red-50 p-1 z-10"
+                            className="absolute -top-3 -right-3 text-red-600 hover:text-red-800 hover:bg-red-50 p-1 z-10"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
