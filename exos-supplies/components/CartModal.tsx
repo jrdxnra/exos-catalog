@@ -310,7 +310,7 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                             variant="ghost"
                             size="sm"
                             onClick={() => removeItem(item.productId)}
-                            className="absolute -top-1 -right-1 text-red-600 hover:text-red-800 hover:bg-red-50 p-1 z-10"
+                            className="absolute -top-2 -right-1 text-red-600 hover:text-red-800 hover:bg-red-50 p-1 z-10"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -350,6 +350,26 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                                   </div>
                                 </div>
                               </div>
+
+                              {/* Top Right: Status Dropdown */}
+                              <div className="ml-2">
+                                <select
+                                  value={item.status}
+                                  onChange={(e) => updateStatus(item.productId, e.target.value)}
+                                  className="px-2 py-1 sm:px-3 sm:py-1 border rounded text-xs sm:text-sm w-20 sm:w-auto"
+                                  style={{
+                                    backgroundColor: statusConfig[item.status]?.bg || '#ffffff',
+                                    color: statusConfig[item.status]?.color || '#000000',
+                                    borderColor: statusConfig[item.status]?.border || '#dee2e6'
+                                  }}
+                                >
+                                  <option value="Hold">Hold</option>
+                                  <option value="Waitlist">Waitlist</option>
+                                  <option value="Pending Approval">Pending</option>
+                                  <option value="Approved">Approved</option>
+                                  <option value="Not Approved">Rejected</option>
+                                </select>
+                              </div>
                             </div>
 
                             {/* Controls Row */}
@@ -378,25 +398,8 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
                                 </Button>
                               </div>
 
-                              {/* Right: Status and Price */}
-                              <div className="flex items-center space-x-2 sm:space-x-3">
-                                <select
-                                  value={item.status}
-                                  onChange={(e) => updateStatus(item.productId, e.target.value)}
-                                  className="px-2 py-1 sm:px-3 sm:py-1 border rounded text-xs sm:text-sm w-20 sm:w-auto"
-                                  style={{
-                                    backgroundColor: statusConfig[item.status]?.bg || '#ffffff',
-                                    color: statusConfig[item.status]?.color || '#000000',
-                                    borderColor: statusConfig[item.status]?.border || '#dee2e6'
-                                  }}
-                                >
-                                  <option value="Hold">Hold</option>
-                                  <option value="Waitlist">Waitlist</option>
-                                  <option value="Pending Approval">Pending</option>
-                                  <option value="Approved">Approved</option>
-                                  <option value="Not Approved">Rejected</option>
-                                </select>
-
+                              {/* Right: Price */}
+                              <div className="flex items-center">
                                 <p className="text-lg font-bold text-blue-800">
                                   ${typeof item.product.Cost === 'string' ? item.product.Cost.replace(/[$]/g, '') : item.product.Cost || '0'}
                                 </p>
