@@ -233,14 +233,14 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b">
             <div className="flex-1">
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">Equipment Cart</h2>
                 </div>
                 
-                {/* Gym Selector */}
+                {/* Gym Selector - Right Justified */}
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium text-gray-600">Gym:</span>
+                  <span className="text-sm font-medium text-gray-600 hidden sm:inline">Gym:</span>
                   <select
                     value={gymId}
                     onChange={(e) => {
