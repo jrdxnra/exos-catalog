@@ -52,7 +52,6 @@ export default function ApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedGym, setSelectedGym] = useState<string>('All');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
-  const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<string>('saved-carts'); // 'saved-carts' or 'submitted-items'
   const [isSubmissionModalOpen, setIsSubmissionModalOpen] = useState(false);
   const [selectedItemsForSubmission, setSelectedItemsForSubmission] = useState<any[]>([]);
@@ -65,7 +64,7 @@ export default function ApprovalsPage() {
 
   useEffect(() => {
     filterItems();
-  }, [savedCarts, approvalItems, selectedGym, selectedStatus, searchTerm, activeTab]);
+  }, [savedCarts, approvalItems, selectedGym, selectedStatus, activeTab]);
 
   const loadData = async () => {
     try {
@@ -97,31 +96,6 @@ export default function ApprovalsPage() {
     // Filter by status for submitted items
     if (selectedStatus !== 'All' && activeTab === 'submitted-items') {
       filtered = filtered.filter((item: any) => item.Status === selectedStatus);
-    }
-
-    // Filter by approval status for saved carts
-    if (selectedStatus !== 'All' && activeTab === 'saved-carts') {
-      if (selectedStatus === 'Not Submitted') {
-        filtered = filtered.filter((item: any) => !item.submittedForApproval);
-      } else if (selectedStatus === 'Submitted') {
-        filtered = filtered.filter((item: any) => item.submittedForApproval);
-      }
-    }
-
-    // Filter by search term
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter((item: any) => {
-        const itemName = activeTab === 'saved-carts' ? item.product?.["Item Name"] : item["Item Name"];
-        const brand = activeTab === 'saved-carts' ? item.product?.Brand : item.Brand;
-        const category = activeTab === 'saved-carts' ? item.product?.Category : item.Category;
-        const partNumber = activeTab === 'saved-carts' ? item.product?.["EXOS Part Number"] : item["EXOS Part Number"];
-        
-        return itemName?.toLowerCase().includes(term) ||
-               brand?.toLowerCase().includes(term) ||
-               category?.toLowerCase().includes(term) ||
-               partNumber?.toLowerCase().includes(term);
-      });
     }
 
     setFilteredItems(filtered);
@@ -212,12 +186,8 @@ export default function ApprovalsPage() {
   // Calculate stats for current tab
   const currentItems = activeTab === 'saved-carts' ? savedCarts : approvalItems;
   const totalItems = currentItems.length;
-  const pendingCount = activeTab === 'saved-carts' 
-    ? savedCarts.filter(item => !item.submittedForApproval).length
-    : approvalItems.filter(item => item.Status === 'Pending Approval').length;
-  const approvedCount = activeTab === 'saved-carts'
-    ? savedCarts.filter(item => item.submittedForApproval).length 
-    : approvalItems.filter(item => item.Status === 'Approved').length;
+  const savedCartsCount = savedCarts.length;
+  const submittedItemsCount = approvalItems.length;
 
   if (loading) {
     return (
@@ -318,12 +288,10 @@ export default function ApprovalsPage() {
             <Card>
               <CardContent className="p-2 sm:p-4">
                 <div className="flex flex-col sm:flex-row items-center text-center sm:text-left">
-                  <Clock className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-600 mb-1 sm:mb-0 sm:mr-3" />
+                  <Package className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-600 mb-1 sm:mb-0 sm:mr-3" />
                   <div>
-                    <p className="text-xs font-medium text-gray-600">
-                      {activeTab === 'saved-carts' ? 'Not Submitted' : 'Pending Approval'}
-                    </p>
-                    <p className="text-sm sm:text-lg font-bold text-gray-900">{pendingCount}</p>
+                    <p className="text-xs font-medium text-gray-600">Saved Carts</p>
+                    <p className="text-sm sm:text-lg font-bold text-gray-900">{savedCartsCount}</p>
                   </div>
                 </div>
               </CardContent>
@@ -334,10 +302,8 @@ export default function ApprovalsPage() {
                 <div className="flex flex-col sm:flex-row items-center text-center sm:text-left">
                   <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6 text-green-600 mb-1 sm:mb-0 sm:mr-3" />
                   <div>
-                    <p className="text-xs font-medium text-gray-600">
-                      {activeTab === 'saved-carts' ? 'Submitted' : 'Approved'}
-                    </p>
-                    <p className="text-sm sm:text-lg font-bold text-gray-900">{approvedCount}</p>
+                    <p className="text-xs font-medium text-gray-600">Submitted Items</p>
+                    <p className="text-sm sm:text-lg font-bold text-gray-900">{submittedItemsCount}</p>
                   </div>
                 </div>
               </CardContent>
@@ -347,6 +313,20 @@ export default function ApprovalsPage() {
           {/* Filters */}
           <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
             <div className="flex flex-wrap gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Gym</label>
+                <select
+                  value={selectedGym}
+                  onChange={(e) => setSelectedGym(e.target.value)}
+                  className="border border-gray-300 rounded-md px-3 py-2 bg-white"
+                >
+                  <option value="All">All Gyms</option>
+                  {GYMS.map(gym => (
+                    <option key={gym} value={gym}>{gym}</option>
+                  ))}
+                </select>
+              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                 <select
@@ -370,17 +350,6 @@ export default function ApprovalsPage() {
                     </>
                   )}
                 </select>
-              </div>
-              
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search items..."
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
-                />
               </div>
             </div>
           </div>
