@@ -414,15 +414,18 @@ export default function CartModal({ isOpen, onClose, gymId, onCartUpdate, onGymC
           {/* Footer */}
           {cart?.items && cart.items.length > 0 && (
             <div className="border-t p-6">
-              {/* Total Price - Right Justified */}
-              <div className="flex justify-end mb-4">
+              {/* Item Count and Total Price - Right Justified */}
+              <div className="flex flex-col items-end mb-4 space-y-1">
+                <div className="text-sm text-gray-600">
+                  {getTotalItems()} items
+                </div>
                 <div className="text-lg font-bold text-gray-900">
                   Total: ${getTotalCost().toFixed(2)}
                 </div>
               </div>
               
-              <div className="flex items-center justify-between">
-                
+              {/* Action Buttons - Right Justified */}
+              <div className="flex justify-end">
                 <div className="flex space-x-2">
                   <Button
                     variant="outline"
