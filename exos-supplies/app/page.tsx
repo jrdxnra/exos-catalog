@@ -402,7 +402,7 @@ export default function HomePage() {
                     <span className="font-medium text-blue-600">{selectedGym}</span>
                     <span className="font-medium w-8 sm:w-12 hidden sm:inline">Status:</span>
                     <select 
-                      className="flex-1 px-1 sm:px-2 py-1 border rounded text-xs status-select max-w-full"
+                      className="w-20 sm:w-24 px-1 sm:px-2 py-1 border rounded text-xs status-select"
                       defaultValue="Pending Approval"
                       onChange={(e) => {
                         const target = e.target;
@@ -447,14 +447,14 @@ export default function HomePage() {
                     <Button
                       onClick={(e) => handleAddToCart(product, e)}
                       size="sm"
-                      className="flex-1 bg-blue-700 hover:bg-blue-800 text-white text-xs h-8"
+                      className="bg-blue-700 hover:bg-blue-800 text-white text-xs h-8 px-3"
                     >
                       Add to Gym
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-xs border-blue-300 text-blue-700 hover:bg-blue-50 h-8"
+                      className="text-xs border-blue-300 text-blue-700 hover:bg-blue-50 h-8 px-3"
                       onClick={() => {
                         const copyText = `${product["Item Name"]}\t${product.Brand}\t${product.Category}\t${product["EXOS Part Number"]}\t${product.Cost}`;
                         navigator.clipboard.writeText(copyText);
