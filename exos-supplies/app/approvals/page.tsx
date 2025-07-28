@@ -276,18 +276,6 @@ export default function ApprovalsPage() {
             <Card>
               <CardContent className="p-2 sm:p-4">
                 <div className="flex flex-col sm:flex-row items-center text-center sm:text-left">
-                  <Package className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600 mb-1 sm:mb-0 sm:mr-3" />
-                  <div>
-                    <p className="text-xs font-medium text-gray-600">Total Items</p>
-                    <p className="text-sm sm:text-lg font-bold text-gray-900">{totalItems}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-2 sm:p-4">
-                <div className="flex flex-col sm:flex-row items-center text-center sm:text-left">
                   <Package className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-600 mb-1 sm:mb-0 sm:mr-3" />
                   <div>
                     <p className="text-xs font-medium text-gray-600">Saved Carts</p>
@@ -304,6 +292,18 @@ export default function ApprovalsPage() {
                   <div>
                     <p className="text-xs font-medium text-gray-600">Submitted Items</p>
                     <p className="text-sm sm:text-lg font-bold text-gray-900">{submittedItemsCount}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-2 sm:p-4">
+                <div className="flex flex-col sm:flex-row items-center text-center sm:text-left">
+                  <Package className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600 mb-1 sm:mb-0 sm:mr-3" />
+                  <div>
+                    <p className="text-xs font-medium text-gray-600">Total Items</p>
+                    <p className="text-sm sm:text-lg font-bold text-gray-900">{totalItems}</p>
                   </div>
                 </div>
               </CardContent>
